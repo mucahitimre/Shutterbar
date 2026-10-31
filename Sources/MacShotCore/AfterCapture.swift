@@ -52,6 +52,8 @@ public struct AfterCaptureReport: Equatable, Sendable {
     public var savedURLs: [URL] = []
     public var copied = false
     public var failures: [AfterCaptureFailure] = []
+    /// Ön koşulu olmadığı için çalışmayan task'lar (ör. kayıt yokken Finder); hata sayılmaz.
+    public var skipped: AfterCaptureTask = []
 
     public init(tasks: AfterCaptureTask, imageCount: Int) {
         self.tasks = tasks
@@ -99,7 +101,7 @@ public enum AfterCaptureRunner {
                 }
             case .revealInFinder:
                 if report.savedURLs.isEmpty {
-                    report.failures.append(.init(task: task, message: "gösterilecek kayıtlı dosya yok"))
+                    report.skipped.insert(task)
                 } else {
                     actions.reveal(report.savedURLs)
                 }

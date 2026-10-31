@@ -7,6 +7,7 @@ final class CaptureOutput: AfterCaptureActions {
     private let namer = FileNamer()
     private let preferences: Preferences
     private let notifier = Notifier()
+    private var warnedNoTasks = false
 
     init(preferences: Preferences = .shared) {
         self.preferences = preferences
@@ -14,10 +15,13 @@ final class CaptureOutput: AfterCaptureActions {
 
     /// Enter / Space / ~ / son bölge: seçili task'lar. Task yoksa uyarı.
     func deliver(_ images: [CGImage]) {
-        guard AfterCaptureRunner.run(preferences.afterCaptureTasks, images: images, actions: self) != nil else {
-            Log.output.info("After-capture task'ı seçili değil; görüntü atıldı")
-            warnNoTasks()
+        guard let report = AfterCaptureRunner.run(preferences.afterCaptureTasks, images: images, actions: self) else {
+            Log.output.info("Hiçbir after-capture task seçili değil; görüntü atıldı")
+            warnNoTasksOnce()
             return
+        }
+        if report.skipped.contains(.revealInFinder) {
+            Log.output.info("Finder'da göster atlandı: kayıtlı dosya yok")
         }
     }
 
@@ -29,24 +33,34 @@ final class CaptureOutput: AfterCaptureActions {
     // MARK: AfterCaptureActions
 
     func save(_ images: [CGImage]) throws -> [URL] {
-        let date = Date()
-        return try SaveFolder.withRoot(bookmark: preferences.saveFolderBookmark) { root in
-            var written: [URL] = []
-            for image in images {
-                let url = namer.fileURL(in: root, date: date) { url in
-                    FileManager.default.fileExists(atPath: url.path) || written.contains(url)
-                }
-                do {
-                    try PNGEncoder.write(image, to: url)
-                } catch {
-                    Log.output.error("Kaydedilemedi: \(url.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
-                    throw error
-                }
-                written.append(url)
-                Log.output.info("Kaydedildi: \(url.path, privacy: .public) (\(image.width)×\(image.height) px)")
-            }
-            return written
+        do {
+            return try SaveFolder.withRoot(bookmark: preferences.saveFolderBookmark) { try write(images, in: $0) }
+        } catch let error as SaveFolder.FolderError {
+            // R2.4: seçili klasör erişilemezse varsayılana dön ve kullanıcıyı uyar.
+            Log.output.error("Kayıt klasörü çözülemedi; varsayılana dönülüyor")
+            preferences.saveFolderBookmark = nil
+            notifier.post(title: AppInfo.name, body: error.localizedDescription, file: nil)
+            return try write(images, in: SaveFolder.defaultRoot)
         }
+    }
+
+    private func write(_ images: [CGImage], in root: URL) throws -> [URL] {
+        let date = Date()
+        var written: [URL] = []
+        for image in images {
+            let url = namer.fileURL(in: root, date: date) { url in
+                FileManager.default.fileExists(atPath: url.path) || written.contains(url)
+            }
+            do {
+                try PNGEncoder.write(image, to: url)
+            } catch {
+                Log.output.error("Kaydedilemedi: \(url.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                throw error
+            }
+            written.append(url)
+            Log.output.info("Kaydedildi: \(url.path, privacy: .public) (\(image.width)×\(image.height) px)")
+        }
+        return written
     }
 
     func copy(_ images: [CGImage]) throws {
@@ -63,10 +77,13 @@ final class CaptureOutput: AfterCaptureActions {
         notifier.post(title: title, body: report.summary, file: report.savedURLs.first)
     }
 
-    private func warnNoTasks() {
+    /// R2.8: uyarı oturum başına bir kez; ayarlar penceresinde kalıcı uyarı da var.
+    private func warnNoTasksOnce() {
+        guard !warnedNoTasks else { return }
+        warnedNoTasks = true
         let alert = NSAlert()
-        alert.messageText = "After-capture task'ı seçili değil"
-        alert.informativeText = "Görüntü hiçbir yere kaydedilmedi. Menüden ya da ayarlardan en az bir task seç."
+        alert.messageText = "Hiçbir after-capture task seçili değil"
+        alert.informativeText = "Görüntü hiçbir yere gitmedi. Menüdeki After capture'dan ya da ayarlardan en az bir task seç."
         NSApp.activate()
         alert.runModal()
     }

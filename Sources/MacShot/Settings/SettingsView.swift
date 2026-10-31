@@ -62,7 +62,7 @@ struct SettingsView: View {
                         }
                     }
                     if preferences.saveFolderBookmark != nil {
-                        Button("Varsayılan") { preferences.saveFolderBookmark = nil }
+                        Button("Varsayılana dön") { preferences.saveFolderBookmark = nil }
                     }
                 }
             }

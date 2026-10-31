@@ -7,7 +7,7 @@ enum SaveFolder {
         case bookmarkStale
 
         var errorDescription: String? {
-            "Seçili kayıt klasörüne erişilemiyor; ayarlardan yeniden seç"
+            "Seçili kayıt klasörüne erişilemedi; varsayılan klasöre dönüldü"
         }
     }
 
@@ -26,9 +26,15 @@ enum SaveFolder {
     }
 
     /// Kök klasörde çalışır; seçili klasör için erişimi açar ve iş bitince kapatır.
+    /// Bookmark çözülemezse `FolderError.bookmarkStale` atar; çağıran varsayılana döner.
     static func withRoot<T>(bookmark: Data?, _ body: (URL) throws -> T) throws -> T {
         guard let bookmark else { return try body(defaultRoot) }
-        let (url, stale) = try resolve(bookmark)
+        let url: URL, stale: Bool
+        do {
+            (url, stale) = try resolve(bookmark)
+        } catch {
+            throw FolderError.bookmarkStale
+        }
         guard url.startAccessingSecurityScopedResource() else { throw FolderError.bookmarkStale }
         defer { url.stopAccessingSecurityScopedResource() }
         if stale {

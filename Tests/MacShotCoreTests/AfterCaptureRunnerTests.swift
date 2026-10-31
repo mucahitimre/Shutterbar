@@ -68,7 +68,16 @@ struct AfterCaptureRunnerTests {
         let report = AfterCaptureRunner.run([.saveToFile, .copyToClipboard, .revealInFinder], images: [image], actions: mock)
         #expect(mock.calls == ["save", "copy", "notify"])
         #expect(report?.copied == true)
-        #expect(report?.failures.map(\.task) == [.saveToFile, .revealInFinder])
+        #expect(report?.failures.map(\.task) == [.saveToFile])
+        #expect(report?.skipped == .revealInFinder)
+    }
+
+    @Test func revealSkippedWhenSaveOff() {
+        let mock = MockActions()
+        let report = AfterCaptureRunner.run([.copyToClipboard, .revealInFinder], images: [image], actions: mock)
+        #expect(mock.calls == ["copy"])
+        #expect(report?.skipped == .revealInFinder)
+        #expect(report?.failures.isEmpty == true)
     }
 
     @Test func failureNotifiesOnceEvenWhenNotificationOff() {

@@ -71,8 +71,9 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 - [x] Auto-scroll probe: sandboxed build cannot be added to Accessibility on macOS 27; non-sandboxed can; once granted, synthetic scrolling moved the page 80 px — Claude + owner, 2026-10-31
 - [x] Automatic scrolling self-test on a Cloudflare dashboard page: 5 frames appended, stopped at the end on its own, seamless 456×1101 result, fixed sidebar removed — Claude + owner, 2026-10-31 (earlier runs failed; causes fixed: bad first frame, re-rasterized text, hover effects, repeating rows, wide score peaks; an early version also trapped the pointer — fixed with AutoScrollPolicy)
 - [ ] Automatic scrolling from the real overlay flow (Capture button / Enter), moving the mouse to take over, Esc to cancel
-- [ ] AppStore configuration: no auto-scroll option, manual scrolling works, sandbox entitlements present
-- [ ] Preferences migrated from the sandboxed build (shortcuts, tasks, last region)
+- [x] AppStore configuration: launches sandboxed with automatic scrolling unavailable (`Channel: sandboxed=true, autoScroll=false`), sandbox entitlements present; Debug: `sandboxed=false, autoScroll=true` — Claude, 2026-10-31
+- [ ] AppStore configuration: manual scrolling session end to end
+- [x] Preferences migrated from the sandboxed build: 6/6 keys readable afterwards (shortcuts, tasks, mode, last region, settings pane) — Claude, 2026-10-31
 - [x] Stitching algorithm unit-tested with a synthetic page (sticky bands, scroll-bar noise, blank blocks, lost frames, maximum height) — Claude, 2026-10-31
 
 ## Release package (per release)

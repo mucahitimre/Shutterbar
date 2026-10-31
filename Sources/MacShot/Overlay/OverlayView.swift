@@ -99,6 +99,11 @@ final class OverlayView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    #if DEBUG
+    /// Showcase screenshots: no coordinates / magnifier at the (arbitrary) pointer position.
+    static var hidesCursorInfo = false
+    #endif
+
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -395,7 +400,11 @@ final class OverlayView: NSView {
         var origin = CGPoint(x: cursor.x + gap, y: cursor.y + gap)
         if origin.x + block.width > bounds.width { origin.x = cursor.x - gap - block.width }
         if origin.y + block.height > bounds.height { origin.y = cursor.y - gap - block.height }
+        #if DEBUG
+        let showsTools = machine.mode.selectsRegion && !Self.hidesCursorInfo
+        #else
         let showsTools = machine.mode.selectsRegion
+        #endif
         if let magnifier {
             let visible = showsTools && magnifierEnabled
             if visible {

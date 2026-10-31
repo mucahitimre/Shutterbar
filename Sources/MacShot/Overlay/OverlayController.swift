@@ -152,6 +152,17 @@ final class OverlayController: OverlayViewDelegate {
         view.window?.makeFirstResponder(view)
     }
 
+    #if DEBUG
+    /// Showcase screenshots: close the overlay without a result, and where the toolbar is.
+    func dismissForShowcase() { finish(.cancelled) }
+    var toolbarFrameForShowcase: CGRect? { toolbar?.frame }
+    /// Places the toolbar at the bottom center of `frame` (AppKit global) instead of the screen.
+    func moveToolbarForShowcase(into frame: CGRect) {
+        guard let toolbar else { return }
+        toolbar.setFrameOrigin(CGPoint(x: frame.midX - toolbar.frame.width / 2, y: frame.minY + 40))
+    }
+    #endif
+
     private func finish(_ result: OverlayResult) {
         guard let continuation else { return }
         self.continuation = nil

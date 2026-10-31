@@ -5,8 +5,8 @@
 <h1 align="center">MacShot</h1>
 
 <p align="center">
-  <strong>ShareX-style screenshots for the Mac — freeze, select, annotate, done.</strong><br>
-  <sub>A native menu bar app: frozen-screen region capture, window and scrolling capture, an annotation editor and after-capture tasks.<br>Built with ScreenCaptureKit and AppKit. No account, no cloud, nothing leaves your Mac.</sub>
+  <strong>ShareX-style screenshots for the Mac — select, ⌘C, done.</strong><br>
+  <sub>Copy a region straight to the clipboard, run the same after-capture tasks every time, and grab the last region again with one shortcut.<br>Frozen-screen selection, window and scrolling capture, an annotation editor — built with ScreenCaptureKit and AppKit. No account, no cloud, nothing leaves your Mac.</sub>
 </p>
 
 <p align="center">
@@ -21,33 +21,69 @@
   <a href="CHANGELOG.md">Changelog</a> · <a href="RELEASING.md">Releasing</a> · <a href="docs/manual-test.md">Manual tests</a> · <a href="docs/plan.md">Original plan</a>
 </p>
 
-<!-- Hero screenshot: docs/images/screenshot.png (capture toolbar over a neutral page) -->
+<p align="center">
+  <img src="docs/images/screenshot.png" alt="MacShot capture toolbar and an editable selection over a frozen page" width="100%">
+  <br><sub>Frozen screen, editable selection and the capture toolbar. Page: Wikipedia, CC BY-SA 4.0.</sub>
+</p>
 
 ---
+
+## The essentials
+
+These three are why MacShot exists — the parts of ShareX that macOS doesn't have:
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### ⌘C — straight to the clipboard
+
+Select a region and press **⌘C**: the image is on your clipboard and nothing else happens — no file, no dialog. Paste it into Slack, Mail or a ticket right away.
+
+</td>
+<td width="33%" valign="top">
+
+### ⚡ After-capture tasks, decided once
+
+Press **Enter** and your chosen tasks run in order: **save → copy → show in Finder → notify** (plus the annotation editor if you want it). Set them once in the menu; every capture follows the same pipeline, and one failing task never blocks the others.
+
+</td>
+<td width="33%" valign="top">
+
+### 🔁 It remembers your region
+
+The last region is kept across relaunches and shown in the overlay — press Enter to take it again, or hit **⌥⇧5** to capture the same area **without opening the overlay at all**. Perfect for before/after shots and repeated reports.
+
+</td>
+</tr>
+</table>
+
+And underneath it all: **the screen freezes the moment you press ⌘⇧X**, so menus, tooltips and hover states stay exactly where they were while you select.
 
 ## Why MacShot
 
 macOS's built-in screenshots are good, but if you came from ShareX you miss things:
 
-- ✗ The screen keeps moving while you select — menus close, hovers disappear
+- ✗ No one-key "just put it on the clipboard" while you select
 - ✗ No "do this after every capture" pipeline (save, copy, reveal, annotate)
 - ✗ No way to grab the same region again with one shortcut
-- ✗ No scrolling screenshots of long pages
-- ✗ Annotating means opening another app
+- ✗ The screen keeps moving while you select — menus close, hovers disappear
+- ✗ No scrolling screenshots of long pages, and annotating means opening another app
 
 ## The Solution
 
-**Press ⌘⇧X.** The screen freezes instantly, you select a region (or click a window), and MacShot runs your after-capture tasks — all from the menu bar, all local.
+**Press ⌘⇧X.** The screen freezes instantly, you select a region (or click a window), then **⌘C** copies it or **Enter** runs your after-capture tasks — all from the menu bar, all local.
 
 | | |
 |---|---|
+| 📋 **⌘C to clipboard** | Copy the selection without saving or running tasks |
+| ⚡ **After-capture tasks** | Save, copy (PNG + TIFF), show in Finder, notify, annotate — in order, each failure isolated |
+| 🔁 **Last region** | Remembered across relaunches, previewed in the overlay; ⌥⇧5 captures it again without the overlay |
 | 🧊 **Frozen screen** | Every display is captured first; you select on a still image, so menus and hover states stay put |
 | 🎯 **Pixel-accurate regions** | Magnifier, arrow-key nudging, size labels, square selection, move and resize until Enter |
 | 🪟 **Window & screen modes** | Hover highlights a window with the camera cursor, click to capture — like macOS, plus detection in region mode |
 | 📜 **Scrolling capture** | Long pages stitched into one image; automatic scrolling that stops at the end and never takes over your mouse |
 | ✏️ **Annotation editor** | Arrow, rectangle, text, pixelate, numbered steps — native toolbar, undo/redo, share |
-| ⚡ **After-capture tasks** | Save, copy (PNG + TIFF), show in Finder, notify — in order, each failure isolated |
-| 🔁 **Last region** | Remembered across relaunches; ⌥⇧5 captures it again without the overlay |
 | 🖼️ **Floating thumbnail** | Click to annotate, drag into any app, swipe to dismiss |
 | ⏱️ **Self-timer & sound** | 5 / 10 second timer, system shutter sound |
 | 🍎 **Native** | Follows macOS's own screenshot UI, light and dark mode, Reduce Motion |
@@ -83,7 +119,7 @@ xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD 
 
 Pure logic (geometry, selection state machine, file naming, last region decisions, window detection, annotations) lives in the `MacShotCore` framework and is tested without a host app.
 
-In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), `--args -MacShotShowWindows` opens Settings and onboarding, and `--args -MacShotRegionSelfTest` logs whether region capture matches a crop of a full snapshot, `--args -MacShotAutoScrollProbe` checks whether synthetic scrolling works, and `--args -MacShotScrollingSelfTest` runs a scrolling capture on the area under the mouse (frames are kept in `~/Pictures/MacShot/selftest-frames/`).
+In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), `--args -MacShotShowWindows` opens Settings and onboarding, `--args -MacShotShowcase` regenerates the README screenshots from the frontmost Safari window (only Safari and MacShot are captured), and `--args -MacShotRegionSelfTest` logs whether region capture matches a crop of a full snapshot, `--args -MacShotAutoScrollProbe` checks whether synthetic scrolling works, and `--args -MacShotScrollingSelfTest` runs a scrolling capture on the area under the mouse (frames are kept in `~/Pictures/MacShot/selftest-frames/`).
 
 Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 
@@ -131,6 +167,8 @@ Keys inside the overlay:
 **Last region:** after every region capture the display UUID and rect are stored (kept across relaunches). The region overlay shows it as a faint dashed outline; Enter accepts it. If the display is gone or the rect no longer fits, ⌥⇧5 opens the overlay with "Last region is not valid for this display layout". Window captures (clicking a detected window without changing it) and Space / ~ captures do not change the last region; only drawn regions are remembered.
 
 ### Annotation editor
+
+<p align="center"><img src="docs/images/editor.png" alt="MacShot annotation editor" width="560"></p>
 
 When the "Open annotation editor" task is selected, the capture opens in the editor first and the other tasks run on the edited image (skipped for multi-screen captures).
 

@@ -146,6 +146,27 @@ final class CaptureCoordinator {
         lastRegion.record(.region(LastRegion(displayUUID: uuid, rect: rect, displaySize: snapshot.frame.size, date: Date())))
     }
 
+    #if DEBUG
+    /// Editörü sentetik bir görüntüyle açar; sonuç after-capture task'larına gider.
+    func openEditorSample() {
+        let width = 1200, height = 760
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return }
+        for i in 0..<12 {
+            let shade = 0.55 + CGFloat(i) * 0.035
+            context.setFillColor(CGColor(srgbRed: shade, green: shade * 0.95, blue: 1, alpha: 1))
+            context.fill(CGRect(x: i * 100, y: 0, width: 100, height: height))
+        }
+        context.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 150, y: 200, width: 900, height: 360))
+        guard let image = context.makeImage() else { return }
+        var tasks = preferences.afterCaptureTasks
+        tasks.insert(.annotate)
+        output.deliver([image], tasks: tasks)
+    }
+    #endif
+
     // MARK: Hata
 
     private func report(_ error: any Error) {

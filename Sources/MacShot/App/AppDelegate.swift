@@ -30,6 +30,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings: { [weak self] in self?.settings?.show() }
         ), preferences: .shared)
 
+        #if DEBUG
+        // Geliştirme: `open MacShot.app --args -MacShotEditorSample` editörü örnek görüntüyle açar (capture gerekmez).
+        if ProcessInfo.processInfo.arguments.contains("-MacShotEditorSample") {
+            capture.openEditorSample()
+            return
+        }
+        #endif
+
         if !PermissionService.hasScreenCaptureAccess {
             onboarding.show()
         }

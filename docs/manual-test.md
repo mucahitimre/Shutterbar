@@ -1,11 +1,12 @@
 # Manuel test checklist'i
 
-Ortam: macOS 27.0 (Darwin 27.0.0), tek Retina ekran (dahili). Build: Debug, Apple Development imzalı, sandbox açık.
+Ortam: macOS 27.0 (Darwin 27.0.0), tek ekran 2048×1332 pt, `backingScaleFactor` 1.0 (1x; 31.10 ölçüldü — önceki "Retina" notu yanlıştı). Build: Debug, Apple Development imzalı, sandbox açık.
 İşaretler: `[x]` koşuldu ve geçti · `[ ]` manuel bekliyor · not satırında kim/nasıl.
 
-- [x] Tek Retina ekran: region capture çalışıyor, dosya kaydediliyor — kullanıcı 31.10.2026 doğruladı (610×228 ve 652×621 px PNG)
+- [x] Tek ekran (1x): region capture çalışıyor, dosya kaydediliyor — kullanıcı 31.10.2026 doğruladı (610×228 ve 652×621 px PNG)
 - [x] F4 build genel kullanım — kullanıcı 31.10.2026 "çalışıyor" dedi (madde madde değil; aşağıdaki işaretsizler ayrıca teyit bekliyor)
 - [ ] Kesimin piksel doğruluğu (bilinen boyutlu UI öğesiyle karşılaştırma) — manuel bekliyor; unit test 1x/2x/1.5x kapsıyor
+- [ ] Retina (2x) ekranda capture ve keskinlik — bu makinede 2x ekran yok, manuel bekliyor
 - [ ] Retina dahili + 1x harici ekran: iki ekranda capture, keskinlik, doğru boyut — harici ekran yok, manuel bekliyor
 - [ ] Harici ekran ana ekranın soluna/üstüne (negatif koordinat) — manuel bekliyor; unit test kapsıyor
 - [ ] İki ekran arasında sürükleme → başlangıç ekranına clamp — manuel bekliyor

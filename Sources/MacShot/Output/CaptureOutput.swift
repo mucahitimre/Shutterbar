@@ -8,14 +8,50 @@ final class CaptureOutput: AfterCaptureActions {
     private let preferences: Preferences
     private let notifier = Notifier()
     private var warnedNoTasks = false
+    /// Açık editörler; kapanana kadar tutulur.
+    private var editors: [EditorWindowController] = []
 
     init(preferences: Preferences = .shared) {
         self.preferences = preferences
     }
 
-    /// Enter / Space / ~ / son bölge: seçili task'lar. Task yoksa uyarı.
-    func deliver(_ images: [CGImage]) {
-        guard let report = AfterCaptureRunner.run(preferences.afterCaptureTasks, images: images, actions: self) else {
+    /// Enter / Space / ~ / son bölge: seçili task'lar. Editör seçiliyse önce o açılır (tek görüntüde).
+    func deliver(_ images: [CGImage], tasks: AfterCaptureTask? = nil) {
+        let tasks = tasks ?? preferences.afterCaptureTasks
+        guard tasks.contains(.annotate) else {
+            run(tasks, images: images)
+            return
+        }
+        guard images.count == 1, let image = images.first else {
+            Log.output.info("Editör atlandı: \(images.count) görüntü (yalnız tek görüntü düzenlenir)")
+            run(tasks, images: images)
+            return
+        }
+        let editor = EditorWindowController(image: image)
+        editors.append(editor)
+        Task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-MacShotEditorSelfTest") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    editor.runSelfTest(snapshotTo: SaveFolder.defaultRoot.appendingPathComponent("debug-editor-window.png"))
+                }
+            }
+            #endif
+            let result = await editor.run()
+            editors.removeAll { $0 === editor }
+            switch result {
+            case .done(let edited):
+                run(tasks, images: [edited])
+            case .copyOnly(let edited):
+                copyOnly([edited])
+            case .cancelled:
+                Log.output.info("Editör iptal edildi; görüntü atıldı")
+            }
+        }
+    }
+
+    private func run(_ tasks: AfterCaptureTask, images: [CGImage]) {
+        guard let report = AfterCaptureRunner.run(tasks, images: images, actions: self) else {
             Log.output.info("Hiçbir after-capture task seçili değil; görüntü atıldı")
             warnNoTasksOnce()
             return

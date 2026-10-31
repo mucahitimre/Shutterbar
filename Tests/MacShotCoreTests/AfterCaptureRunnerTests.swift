@@ -115,4 +115,16 @@ struct AfterCaptureRunnerTests {
         _ = AfterCaptureRunner.run(.showNotification, images: [image], actions: mock)
         #expect(mock.thumbnail === image)
     }
+
+    @Test func runnerIgnoresAnnotate() {
+        let mock = MockActions()
+        #expect(AfterCaptureRunner.run(.annotate, images: [image], actions: mock) == nil)
+        let report = AfterCaptureRunner.run([.annotate, .copyToClipboard], images: [image], actions: mock)
+        #expect(mock.calls == ["copy"])
+        #expect(report?.tasks == .copyToClipboard)
+    }
+
+    @Test func annotateIsFirstInOrder() {
+        #expect(AfterCaptureTask.ordered.first == .annotate)
+    }
 }

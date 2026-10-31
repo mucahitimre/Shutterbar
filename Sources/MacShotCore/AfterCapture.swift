@@ -10,11 +10,13 @@ public struct AfterCaptureTask: OptionSet, Hashable, Sendable {
     public static let copyToClipboard = AfterCaptureTask(rawValue: 1 << 1)
     public static let showNotification = AfterCaptureTask(rawValue: 1 << 2)
     public static let revealInFinder = AfterCaptureTask(rawValue: 1 << 3)
+    /// Diğer task'lardan önce editörü açar; onlar düzenlenmiş görüntüyle çalışır. Runner bunu çalıştırmaz.
+    public static let annotate = AfterCaptureTask(rawValue: 1 << 4)
 
     public static let defaults: AfterCaptureTask = [.saveToFile, .copyToClipboard]
 
-    /// Çalışma sırası: kaydet → pano → Finder → bildirim.
-    public static let ordered: [AfterCaptureTask] = [.saveToFile, .copyToClipboard, .revealInFinder, .showNotification]
+    /// Çalışma sırası: (editör) → kaydet → pano → Finder → bildirim.
+    public static let ordered: [AfterCaptureTask] = [.annotate, .saveToFile, .copyToClipboard, .revealInFinder, .showNotification]
 
     public var title: String {
         switch self {
@@ -22,6 +24,7 @@ public struct AfterCaptureTask: OptionSet, Hashable, Sendable {
         case .copyToClipboard: "Panoya kopyala"
         case .showNotification: "Bildirim göster"
         case .revealInFinder: "Finder'da göster"
+        case .annotate: "Annotation editörünü aç"
         default: "?"
         }
     }
@@ -83,6 +86,7 @@ public enum AfterCaptureRunner {
     /// Seçili task yoksa `nil` döner (çağıran uyarır).
     @discardableResult
     public static func run(_ tasks: AfterCaptureTask, images: [CGImage], actions: some AfterCaptureActions) -> AfterCaptureReport? {
+        let tasks = tasks.subtracting(.annotate)
         guard !tasks.isEmpty else { return nil }
         var report = AfterCaptureReport(tasks: tasks, imageCount: images.count)
 

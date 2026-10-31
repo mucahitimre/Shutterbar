@@ -30,6 +30,10 @@ Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR` for break
 5. The tag triggers the **Release check** workflow (version/changelog match, Release build, tests). When it is green, review the draft release on GitHub and publish it.
 6. Smoke test the published DMG on a clean account (see "Release package" in the manual checklist).
 
+## Pre-release without Developer ID
+
+Until the Developer ID certificate exists, `scripts/release.sh X.Y.Z --no-notarize` publishes a **pre-release** signed with the Apple Development identity (same checks, tag, DMG/ZIP and checksums; no notarization). The release notes tell users to right-click → Open once. When Developer ID is set up, ship the next version normally.
+
 ## Fixing a bad release
 
 Do not move or force-push a published tag. Ship a new patch version (`X.Y.Z+1`). A draft release that was never published can be deleted together with its tag.

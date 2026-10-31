@@ -4,6 +4,8 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-31
+
 ### Added
 - Scrolling capture: select an area, scroll through it, and MacShot stitches the frames into one tall image (sticky headers/footers kept once, fixed sidebars left out).
 - Automatic scrolling for scrolling capture in the GitHub build (Accessibility permission): stops at the end, on any user input or Esc, with time and frame limits.
@@ -42,6 +44,7 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 - Last region: remembered across relaunches, previewed in the overlay, captured directly with ⌥⇧5, with a fallback when the display layout changed.
 - Magnifier, launch at login, permission onboarding, hotkey registration check with fallback shortcuts.
 
-[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/mucahitimre/MacShot/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/mucahitimre/MacShot/releases/tag/v0.1.0
+[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mucahitimre/MacShot/compare/e06bd42...v0.3.0
+[0.2.0]: https://github.com/mucahitimre/MacShot/compare/fbe4b7a...e06bd42
+[0.1.0]: https://github.com/mucahitimre/MacShot/tree/fbe4b7a

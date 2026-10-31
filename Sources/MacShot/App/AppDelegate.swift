@@ -11,13 +11,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Bildirim tıklamalarını yakalayan delegate açılışta kurulmalı.
+        _ = capture
+
         let hotkeys = HotkeyManager { [weak self] action in
             self?.handle(action)
         }
         hotkeys.start()
         self.hotkeys = hotkeys
 
-        settings = SettingsWindowController(hotkeys: hotkeys) { [weak self] in
+        settings = SettingsWindowController(hotkeys: hotkeys, preferences: .shared) { [weak self] in
             self?.onboarding.show()
         }
 
@@ -25,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             captureRegion: { [weak self] in self?.handle(.region) },
             captureLastRegion: { [weak self] in self?.handle(.lastRegion) },
             openSettings: { [weak self] in self?.settings?.show() }
-        ))
+        ), preferences: .shared)
 
         if !PermissionService.hasScreenCaptureAccess {
             onboarding.show()

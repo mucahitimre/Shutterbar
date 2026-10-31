@@ -1,8 +1,14 @@
 import AppKit
 import MacShotCore
 
+/// Bölgenin nereye gideceği: Enter → after-capture task'ları, ⌘C → yalnız pano.
+enum CaptureIntent {
+    case afterCapture
+    case clipboardOnly
+}
+
 enum OverlayResult {
-    case region(DisplaySnapshot, CGRect)
+    case region(DisplaySnapshot, CGRect, CaptureIntent)
     case screens([DisplaySnapshot])
     case cancelled
 }
@@ -86,7 +92,9 @@ final class OverlayController: OverlayViewDelegate {
         case .none:
             break
         case .capture(let rect):
-            finish(.region(view.snapshot, rect))
+            finish(.region(view.snapshot, rect, .afterCapture))
+        case .copy(let rect):
+            finish(.region(view.snapshot, rect, .clipboardOnly))
         case .cancel:
             finish(.cancelled)
         case .captureAllScreens:

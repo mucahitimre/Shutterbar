@@ -1,0 +1,56 @@
+import Foundation
+import MacShotCore
+
+/// UserDefaults'ta tutulan kullanıcı tercihleri. Menü ve ayarlar aynı nesneyi paylaşır.
+@MainActor
+final class Preferences: ObservableObject {
+    static let shared = Preferences()
+
+    private enum Key {
+        static let afterCaptureTasks = "afterCaptureTasks"
+        static let saveFolderBookmark = "saveFolderBookmark"
+        static let quickCapture = "quickCapture"
+        static let magnifier = "magnifier"
+    }
+
+    private let defaults: UserDefaults
+
+    @Published var afterCaptureTasks: AfterCaptureTask {
+        didSet { defaults.set(afterCaptureTasks.rawValue, forKey: Key.afterCaptureTasks) }
+    }
+
+    /// Fareyi bırakınca hemen yakala. Kapalıyken seçim Enter / ⌘C'ye kadar düzenlenebilir.
+    @Published var quickCapture: Bool {
+        didSet { defaults.set(quickCapture, forKey: Key.quickCapture) }
+    }
+
+    @Published var magnifier: Bool {
+        didSet { defaults.set(magnifier, forKey: Key.magnifier) }
+    }
+
+    /// Kullanıcının seçtiği klasörün security-scoped bookmark'ı; yoksa varsayılan klasör.
+    @Published var saveFolderBookmark: Data? {
+        didSet { defaults.set(saveFolderBookmark, forKey: Key.saveFolderBookmark) }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        defaults.register(defaults: [
+            Key.afterCaptureTasks: AfterCaptureTask.defaults.rawValue,
+            Key.quickCapture: false,
+            Key.magnifier: true,
+        ])
+        afterCaptureTasks = AfterCaptureTask(rawValue: defaults.integer(forKey: Key.afterCaptureTasks))
+        quickCapture = defaults.bool(forKey: Key.quickCapture)
+        magnifier = defaults.bool(forKey: Key.magnifier)
+        saveFolderBookmark = defaults.data(forKey: Key.saveFolderBookmark)
+    }
+
+    func toggle(_ task: AfterCaptureTask) {
+        if afterCaptureTasks.contains(task) {
+            afterCaptureTasks.remove(task)
+        } else {
+            afterCaptureTasks.insert(task)
+        }
+    }
+}

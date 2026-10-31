@@ -159,6 +159,13 @@ final class OverlayView: NSView {
 
     // MARK: Klavye
 
+    /// ⌘ kombinasyonları keyDown'dan önce buraya gelir.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard Self.isCopy(event) else { return super.performKeyEquivalent(with: event) }
+        emit(machine.key(.copy))
+        return true
+    }
+
     override func keyDown(with event: NSEvent) {
         guard let key = Self.key(for: event) else {
             super.keyDown(with: event)
@@ -169,7 +176,14 @@ final class OverlayView: NSView {
         emit(output)
     }
 
+    static func isCopy(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags.contains(.command), !flags.contains(.control), !flags.contains(.option) else { return false }
+        return event.keyCode == kVK_ANSI_C || event.charactersIgnoringModifiers?.lowercased() == "c"
+    }
+
     static func key(for event: NSEvent) -> SelectionStateMachine.Key? {
+        if isCopy(event) { return .copy }
         switch Int(event.keyCode) {
         case kVK_Escape: return .escape
         case kVK_Return, kVK_ANSI_KeypadEnter: return .enter

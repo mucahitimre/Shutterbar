@@ -16,6 +16,8 @@ public struct SelectionStateMachine: Sendable {
 
     public enum Key: Equatable, Sendable {
         case escape, enter, delete, space, activeScreen
+        /// ⌘C: seçimi yalnız panoya al.
+        case copy
         case arrow(dx: Int, dy: Int)
     }
 
@@ -31,6 +33,8 @@ public struct SelectionStateMachine: Sendable {
     public enum Output: Equatable, Sendable {
         case none
         case capture(CGRect)
+        /// ⌘C ile alınan bölge; after-capture task'ları yerine yalnız pano.
+        case copy(CGRect)
         case cancel
         case captureAllScreens
         case captureActiveScreen
@@ -167,10 +171,9 @@ public struct SelectionStateMachine: Sendable {
         case .escape:
             return .cancel
         case .enter:
-            guard phase == .idle else { return .none }
-            if let selection { return .capture(selection) }
-            if let preview { return .capture(preview) }
-            return .none
+            return acceptedRect.map(Output.capture) ?? .none
+        case .copy:
+            return acceptedRect.map(Output.copy) ?? .none
         case .delete:
             selection = nil
             phase = .idle
@@ -238,6 +241,12 @@ public struct SelectionStateMachine: Sendable {
         case .left: x1 = point.x
         }
         return CGRect(x: min(x1, x2), y: min(y1, y2), width: abs(x2 - x1), height: abs(y2 - y1))
+    }
+
+    /// Enter / ⌘C'nin kabul edeceği rect: sürükleme bitmiş olmalı; seçim yoksa son bölge ön çizimi.
+    private var acceptedRect: CGRect? {
+        guard phase == .idle else { return nil }
+        return selection ?? preview
     }
 
     private mutating func updateDrawing(anchor: CGPoint) {

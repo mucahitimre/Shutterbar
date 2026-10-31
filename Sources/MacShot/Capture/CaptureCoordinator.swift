@@ -7,11 +7,14 @@ import ScreenCaptureKit
 final class CaptureCoordinator {
     private let snapshotter = ScreenSnapshotService()
     private let overlay = OverlayController()
-    private let output = CaptureOutput()
+    private let output: CaptureOutput
+    private let preferences: Preferences
     private var isBusy = false
     private let onPermissionMissing: () -> Void
 
-    init(onPermissionMissing: @escaping () -> Void) {
+    init(preferences: Preferences = .shared, onPermissionMissing: @escaping () -> Void) {
+        self.preferences = preferences
+        self.output = CaptureOutput(preferences: preferences)
         self.onPermissionMissing = onPermissionMissing
     }
 
@@ -37,7 +40,7 @@ final class CaptureCoordinator {
         }
         let frozen = clock.now
 
-        let result = await overlay.run(snapshots: snapshots, quickCapture: true, preview: nil) {
+        let result = await overlay.run(snapshots: snapshots, quickCapture: preferences.quickCapture, preview: nil) {
             let shown = clock.now
             Log.capture.info("Gecikme: dondurma \(Self.ms(frozen - start), privacy: .public) ms, overlay görünür \(Self.ms(shown - start), privacy: .public) ms, ekran sayısı \(snapshots.count)")
         }
@@ -45,12 +48,15 @@ final class CaptureCoordinator {
         switch result {
         case .cancelled:
             Log.capture.info("İptal edildi")
-        case .region(let snapshot, let rect):
+        case .region(let snapshot, let rect, let intent):
             guard let image = ImageCropper.crop(snapshot.image, pointRect: rect, displayPointSize: snapshot.frame.size) else {
                 Log.capture.error("Kesim boş: \(String(describing: rect), privacy: .public)")
                 return
             }
-            output.deliver([image])
+            switch intent {
+            case .afterCapture: output.deliver([image])
+            case .clipboardOnly: output.copyOnly([image])
+            }
         case .screens(let snapshots):
             output.deliver(snapshots.map(\.image))
         }

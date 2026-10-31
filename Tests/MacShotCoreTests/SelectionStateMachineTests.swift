@@ -156,4 +156,34 @@ struct SelectionStateMachineTests {
         let sm = machine(preview: CGRect(x: 900, y: 700, width: 200, height: 200))
         #expect(sm.preview == nil)
     }
+
+    @Test func nonQuickKeepsSelectionUntilEnter() {
+        var sm = machine(quick: false)
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        #expect(sm.mouseUp(at: CGPoint(x: 110, y: 110)) == .none)
+        #expect(sm.selection == CGRect(x: 10, y: 10, width: 100, height: 100))
+        _ = sm.key(.arrow(dx: 1, dy: 0))
+        #expect(sm.key(.enter) == .capture(CGRect(x: 10.5, y: 10, width: 100, height: 100)))
+    }
+
+    @Test func copyKeyCopiesSelection() {
+        var sm = machine(quick: false)
+        #expect(sm.key(.copy) == .none)
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        _ = sm.mouseUp(at: CGPoint(x: 110, y: 110))
+        #expect(sm.key(.copy) == .copy(CGRect(x: 10, y: 10, width: 100, height: 100)))
+    }
+
+    @Test func copyIgnoredWhileDrawing() {
+        var sm = machine(quick: false)
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        sm.mouseDragged(to: CGPoint(x: 50, y: 50))
+        #expect(sm.key(.copy) == .none)
+    }
+
+    @Test func copyAcceptsPreview() {
+        let last = CGRect(x: 5, y: 5, width: 50, height: 50)
+        var sm = machine(preview: last)
+        #expect(sm.key(.copy) == .copy(last))
+    }
 }

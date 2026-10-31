@@ -5,6 +5,7 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 ## [Unreleased]
 
 ### Added
+- Scrolling capture: select an area, scroll through it, and MacShot stitches the frames into one tall image (sticky headers/footers kept once).
 - Capture toolbar modeled on macOS's screenshot toolbar: close, entire screen / window / selection modes, Options menu, Capture.
 - Window mode (hover + click) and screen mode, with the system camera cursor and an accent-colored highlight.
 - Self-timer (5 / 10 seconds).

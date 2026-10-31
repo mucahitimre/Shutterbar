@@ -32,7 +32,7 @@ xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD 
 
 Pure logic (geometry, selection state machine, file naming, last region decisions, window detection, annotations) lives in the `MacShotCore` framework and is tested without a host app.
 
-In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), and `--args -MacShotShowWindows` opens Settings and onboarding.
+In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), `--args -MacShotShowWindows` opens Settings and onboarding, and `--args -MacShotRegionSelfTest` logs whether region capture matches a crop of a full snapshot.
 
 Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 
@@ -45,11 +45,13 @@ Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 
 Shortcuts can be changed in Settings. The overlay opens with a toolbar at the bottom of the screen, modeled on macOS's own screenshot toolbar:
 
-- **Modes:** Capture Entire Screen (click a screen), Capture Selected Window (hover highlights a window, click captures it), Capture Selected Portion (drag a region).
+- **Modes:** Capture Entire Screen (click a screen), Capture Selected Window (hover highlights a window, click captures it), Capture Selected Portion (drag a region), Capture Scrolling Region (see below).
 - **Options:** save location, after-capture tasks, self-timer (5 / 10 seconds: choose on the frozen frame, captured live after the countdown), floating thumbnail, remember last selection, magnifier, quick capture, window detection, sound.
 - **Capture** (same as Enter) and **Close** (same as Esc).
 
 After a capture a thumbnail appears in the bottom-right corner for a few seconds: click it to annotate (the saved file is replaced), drag it into another app, swipe right to dismiss, or right-click for more.
+
+**Scrolling capture** (toolbar mode, menu > Capture Scrolling Region, or a shortcut you assign in Settings): select the area to capture — for example the content part of a browser window — and press Capture. A dashed frame marks the area; scroll down slowly inside it while MacShot captures and stitches the frames, then click **Done** in the panel below the frame. Sticky headers and footers are kept once, and the overlay scroll bar is ignored when matching. If you scroll too far at once the panel asks you to scroll back a little. No extra permission is needed because you do the scrolling yourself.
 
 Keys inside the overlay:
 
@@ -104,12 +106,13 @@ Sources/MacShotCore/   pure logic, tested without a host app
   AfterCapture           task set + failure-isolating runner
   LastRegion             model, UserDefaults store, validity decision
   WindowSnap             window rects (Quartz → display-local), hit testing
-  CaptureMode            selection / window / screen modes, self-timer
+  CaptureMode            selection / window / screen / scrolling modes, self-timer
+  ScrollStitcher         row signatures, sticky bands, offset matching, ScrollingCapture
   Annotation             model, undo/redo, CoreGraphics/CoreText renderer
   FileNamer, ImageCropper (PNGEncoder), HotkeyRegistration
 Sources/MacShot/
   App/         AppDelegate, menu bar, hotkeys, preferences
-  Capture/     ScreenSnapshotService (ScreenCaptureKit), WindowList, CaptureCoordinator
+  Capture/     ScreenSnapshotService (ScreenCaptureKit), RegionCapturer, ScrollingSession, WindowList, CaptureCoordinator
   Overlay/     one NSPanel per screen, OverlayView, MagnifierView, CaptureToolbar, Countdown
   Editor/      annotation editor (model, canvas, window)
   Output/      CaptureOutput, Clipboard, SaveFolder, Notifier, ThumbnailPanel
@@ -124,7 +127,8 @@ Freeze: on the hotkey all screens are captured in parallel with `SCScreenshotMan
 - No selection spanning multiple screens; the selection is clamped to the screen where it started.
 - Only window detection, no control (button etc.) detection.
 - Drawn annotations cannot be selected, moved or deleted individually; use undo.
-- The self-timer captures the region live after the countdown, so it is the only path that does not use the frozen frame.
+- The self-timer and scrolling capture take live frames, so they are the paths that do not use the frozen frame.
+- Scrolling capture needs overlapping content between frames; an area that is entirely blank while you scroll past it cannot be matched (the frame is skipped). Automatic scrolling is not offered: sending scroll events to other apps would need the Accessibility permission.
 - Launch at login also works for Debug builds under `build/`, but moving the app requires re-enabling it; install into `/Applications` for regular use.
 
 ## Releasing

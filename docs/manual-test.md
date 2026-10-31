@@ -57,6 +57,17 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 - [x] No Auto Layout conflicts when opening the editor, Settings and onboarding (log check, Debug flags) — Claude, 2026-10-31
 - [x] Settings 520×285 (General) and onboarding 460×451 content sizes measured in-app — Claude, 2026-10-31
 
+## Scrolling capture (unreleased)
+
+- [ ] Toolbar mode, menu item and an assigned shortcut open the overlay in scrolling mode
+- [ ] Frame and HUD appear; scrolling inside the frame reaches the app below; height counter grows
+- [ ] Long web page in Safari / Brave: result has the page content once, no duplicated or missing lines; sticky header appears once at the top
+- [ ] Scrolling too fast shows the warning; scrolling back recovers
+- [ ] Done delivers the image (thumbnail, save, clipboard); ⌘C in scrolling mode → clipboard only; Cancel discards
+- [ ] Frame and HUD are not in the result
+- [ ] `-MacShotRegionSelfTest` (Debug): region capture matches the crop (same-rect diff near 0, shifted diff clearly larger) — first run hit a locked screen (ScreenCaptureKit returns no displays while locked); to be re-run unlocked
+- [x] Stitching algorithm unit-tested with a synthetic page (sticky bands, scroll-bar noise, blank blocks, lost frames, maximum height) — Claude, 2026-10-31
+
 ## Release package (per release)
 
 - [ ] DMG opens, drag-to-Applications works, app launches without a Gatekeeper warning (`spctl -a -vv` says "Notarized Developer ID")

@@ -7,9 +7,17 @@ options:
   groupSortPosition: top
 
 # İmza ve bundle id öneki Config/Signing.xcconfig'ten (+ gitignore'daki Config/Local.xcconfig) gelir.
+# Two distribution channels: Debug / Release = GitHub (Developer ID, not sandboxed, automatic scrolling),
+# AppStore = Mac App Store (sandboxed, manual scrolling only).
+configs:
+  Debug: debug
+  Release: release
+  AppStore: release
+
 configFiles:
   Debug: Config/Signing.xcconfig
   Release: Config/Signing.xcconfig
+  AppStore: Config/Signing.xcconfig
 
 settings:
   base:
@@ -62,15 +70,12 @@ targets:
         NSPrincipalClass: NSApplication
         # No custom cryptography; answers the App Store export compliance question.
         ITSAppUsesNonExemptEncryption: false
-    entitlements:
-      path: Sources/MacShot/MacShot.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.assets.pictures.read-write: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
     settings:
+      configs:
+        AppStore:
+          CODE_SIGN_ENTITLEMENTS: Sources/MacShot/MacShot-AppStore.entitlements
       base:
+        CODE_SIGN_ENTITLEMENTS: Sources/MacShot/MacShot.entitlements
         PRODUCT_NAME: $(APP_NAME)
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).$(APP_NAME:lower)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

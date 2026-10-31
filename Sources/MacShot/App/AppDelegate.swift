@@ -47,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AutoScrollProbe.run()
             return
         }
+        // Development: `-MacShotScrollingSelfTest` runs a scrolling session on the area under the mouse.
+        if ProcessInfo.processInfo.arguments.contains("-MacShotScrollingSelfTest") {
+            AutoScrollProbe.runSession()
+            return
+        }
         // Development: `-MacShotShowWindows` opens settings and onboarding (layout checks).
         if ProcessInfo.processInfo.arguments.contains("-MacShotShowWindows") {
             settings?.show()

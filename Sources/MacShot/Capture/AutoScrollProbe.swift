@@ -56,6 +56,32 @@ enum AutoScrollProbe {
         }
     }
 
+    /// End-to-end: runs a real scrolling session (automatic when permitted) on the area under the mouse,
+    /// without the overlay, and logs the result. Launch with `-MacShotScrollingSelfTest`.
+    static func runSession() {
+        Task {
+            alert("Scrolling capture self-test",
+                  "After you click OK you have 5 seconds to put the mouse over a long page. MacShot will capture the area around the mouse, scroll by itself and stop at the end (or click Done).")
+            try? await Task.sleep(for: .seconds(5))
+            let mouse = NSEvent.mouseLocation
+            guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }), let displayID = screen.displayID else { return }
+            let local = CaptureGeometry.toDisplayLocal(mouse, displayFrame: screen.frame)
+            let rect = CGRect(x: local.x - 300, y: local.y - 250, width: 600, height: 500)
+                .intersection(CGRect(origin: .zero, size: screen.frame.size))
+            do {
+                let result = try await ScrollingSession(displayID: displayID, rect: rect, displayFrame: screen.frame).run()
+                let text = switch result {
+                case .done(let image): "Stitched \(image.width)×\(image.height) px"
+                case .cancelled: "Cancelled"
+                }
+                Log.capture.info("SCROLLING SELFTEST \(text, privacy: .public)")
+                alert("Scrolling capture self-test", text)
+            } catch {
+                Log.capture.error("SCROLLING SELFTEST failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     /// Posts pixel-based scroll-down events at the current mouse position. Returns how many events were created.
     static func postScroll(pixels: Int32, steps: Int) -> Int {
         var created = 0

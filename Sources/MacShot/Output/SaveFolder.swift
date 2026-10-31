@@ -35,8 +35,10 @@ enum SaveFolder {
         } catch {
             throw FolderError.bookmarkStale
         }
-        guard url.startAccessingSecurityScopedResource() else { throw FolderError.bookmarkStale }
-        defer { url.stopAccessingSecurityScopedResource() }
+        // Outside the sandbox no access grant is needed; inside it, failing to start access means the folder is gone.
+        let accessing = url.startAccessingSecurityScopedResource()
+        guard accessing || !Channel.isSandboxed else { throw FolderError.bookmarkStale }
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         if stale {
             Preferences.shared.saveFolderBookmark = try? makeBookmark(for: url)
         }

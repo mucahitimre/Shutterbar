@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import MacShotCore
 
 /// Scrolling capture: while the user scrolls inside the selected region, frames are captured and stitched.
@@ -12,6 +13,8 @@ final class ScrollingSession {
     }
 
     private static let frameInterval: Duration = .milliseconds(100)
+    /// Time for the target app's smooth scrolling to settle after a synthetic scroll.
+    private static let settleInterval: Duration = .milliseconds(260)
 
     private let displayID: CGDirectDisplayID
     private let rect: CGRect
@@ -31,6 +34,7 @@ final class ScrollingSession {
         hud = ScrollingHUD()
         hud.onCancel = { [weak self] in self?.finishRequested = false }
         hud.onDone = { [weak self] in self?.finishRequested = true }
+        hud.onEnableAutoScroll = { AutoScrollPermission.request() }
         hud.place(near: globalRect, within: displayFrame)
     }
 
@@ -49,24 +53,47 @@ final class ScrollingSession {
         defer {
             Log.capture.info("Scrolling session frames: \(counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "), privacy: .public)")
         }
+
+        let automatic = Preferences.shared.autoScroll && AutoScrollPermission.isAvailable && AutoScrollPermission.isGranted
+        hud.showsEnableAutoScroll = Preferences.shared.autoScroll && AutoScrollPermission.isAvailable && !automatic
+        Log.capture.info("Scrolling session: \(automatic ? "automatic" : "manual", privacy: .public)")
+        let scroller = automatic ? AutoScroller(regionCenter: CGPoint(x: globalRect.midX, y: globalRect.midY), regionHeight: rect.height) : nil
+        scroller?.moveCursorIntoRegion()
+        var unchangedInARow = 0
+
         while finishRequested == nil {
             let frame = try await capturer.capture()
             let result = stitch.add(frame)
             counts[Self.name(result), default: 0] += 1
             switch result {
             case .first:
-                hud.update(status: "Scroll down slowly inside the frame", height: stitch.height)
+                hud.update(status: automatic ? "Scrolling automatically…" : "Scroll down slowly inside the frame", height: stitch.height)
             case .appended:
-                hud.update(status: "Capturing — keep scrolling, then click Done", height: stitch.height)
+                unchangedInARow = 0
+                hud.update(status: automatic ? "Scrolling automatically — click Done to stop" : "Capturing — keep scrolling, then click Done",
+                           height: stitch.height)
             case .unchanged:
-                break
+                unchangedInARow += 1
+                // Nothing moved twice after scrolling: the end of the page.
+                if automatic, unchangedInARow >= 2, counts["appended", default: 0] > 0 {
+                    hud.update(status: "Reached the end of the page", height: stitch.height)
+                    finishRequested = true
+                }
             case .lost:
-                hud.update(status: "Scrolled too far at once — scroll back up a little", height: stitch.height, warning: true)
+                scroller?.slowDown()
+                hud.update(status: automatic ? "Adjusting scroll speed…" : "Scrolled too far at once — scroll back up a little",
+                           height: stitch.height, warning: !automatic)
             case .full:
                 hud.update(status: "Maximum height reached", height: stitch.height)
                 finishRequested = true
             }
-            try? await Task.sleep(for: Self.frameInterval)
+            guard finishRequested == nil else { break }
+            if let scroller {
+                scroller.scrollDown()
+                try? await Task.sleep(for: Self.settleInterval)
+            } else {
+                try? await Task.sleep(for: Self.frameInterval)
+            }
         }
 
         guard finishRequested == true, let image = stitch.makeImage() else { return .cancelled }
@@ -123,6 +150,14 @@ private final class RegionFrameWindow: NSPanel {
 private final class ScrollingHUD: NSPanel {
     var onCancel: (() -> Void)?
     var onDone: (() -> Void)?
+    var onEnableAutoScroll: (() -> Void)?
+    var showsEnableAutoScroll = false {
+        didSet {
+            enableButton.isHidden = !showsEnableAutoScroll
+            setContentSize(contentView?.fittingSize ?? frame.size)
+        }
+    }
+    private let enableButton = NSButton()
 
     private let icon = NSImageView()
     private let status = NSTextField(labelWithString: "Starting…")
@@ -167,7 +202,14 @@ private final class ScrollingHUD: NSPanel {
         done.bezelStyle = .rounded
         done.keyEquivalent = "\r"
 
-        let row = NSStackView(views: [icon, text, cancel, done])
+        enableButton.title = "Scroll for Me…"
+        enableButton.bezelStyle = .rounded
+        enableButton.target = self
+        enableButton.action = #selector(enableClicked)
+        enableButton.toolTip = "Let MacShot scroll automatically (needs the Accessibility permission)"
+        enableButton.isHidden = true
+
+        let row = NSStackView(views: [icon, text, enableButton, cancel, done])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 10
@@ -206,5 +248,50 @@ private final class ScrollingHUD: NSPanel {
     }
 
     @objc private func cancelClicked() { onCancel?() }
+    @objc private func enableClicked() { onEnableAutoScroll?() }
     @objc private func doneClicked() { onDone?() }
+}
+
+/// Accessibility permission for automatic scrolling (GitHub build only; a sandboxed app cannot be granted it).
+@MainActor
+enum AutoScrollPermission {
+    static var isAvailable: Bool { Channel.supportsAutoScroll }
+    static var isGranted: Bool { AXIsProcessTrusted() }
+
+    /// Shows the system prompt and opens the settings pane where MacShot can be turned on.
+    static func request() {
+        // Key of kAXTrustedCheckOptionPrompt (the global is not concurrency-safe in Swift 6).
+        _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
+}
+
+/// Posts synthetic scroll-down events at the region's center. The step starts at about a third of the region
+/// so consecutive frames always overlap, and halves when a frame cannot be matched.
+@MainActor
+private final class AutoScroller {
+    private let center: CGPoint // Quartz global (top-left origin)
+    private var step: Int32
+
+    init(regionCenter appKitPoint: CGPoint, regionHeight: CGFloat) {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        center = CGPoint(x: appKitPoint.x, y: primaryHeight - appKitPoint.y)
+        step = Int32(max(40, regionHeight * 0.35))
+    }
+
+    /// Scroll events go to the window under the cursor.
+    func moveCursorIntoRegion() {
+        CGWarpMouseCursorPosition(center)
+        CGAssociateMouseAndMouseCursorPosition(1)
+    }
+
+    func scrollDown() {
+        guard let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -step, wheel2: 0, wheel3: 0) else { return }
+        event.location = center
+        event.post(tap: .cghidEventTap)
+    }
+
+    func slowDown() {
+        step = max(20, step / 2)
+    }
 }

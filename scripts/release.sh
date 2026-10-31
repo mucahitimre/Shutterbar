@@ -3,6 +3,9 @@
 #
 #   scripts/release.sh 0.2.0            full release (Developer ID + notarization + draft release)
 #   scripts/release.sh 0.2.0 --local    local dry run: Release build + DMG/ZIP, no notarization, no tag, no upload
+#   scripts/release.sh 0.3.0 --no-notarize
+#                                       published PRE-RELEASE signed with the Apple Development identity (no Developer ID
+#                                       yet): Gatekeeper asks once on first launch; the notes say so
 #
 # Requirements for a full release (see RELEASING.md):
 #   - "Developer ID Application" certificate in the login keychain
@@ -18,9 +21,11 @@ die() { echo "error: $*" >&2; exit 1; }
 step() { echo "==> $*"; }
 
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "usage: scripts/release.sh <x.y.z[-pre]> [--local]"
-[[ -z "$MODE" || "$MODE" == "--local" ]] || die "unknown option: $MODE"
+[[ -z "$MODE" || "$MODE" == "--local" || "$MODE" == "--no-notarize" ]] || die "unknown option: $MODE"
 LOCAL=false
-[[ "$MODE" == "--local" ]] && LOCAL=true
+NOTARIZE=true
+[[ "$MODE" == "--local" ]] && LOCAL=true && NOTARIZE=false
+[[ "$MODE" == "--no-notarize" ]] && NOTARIZE=false
 
 cd "$(dirname "$0")/.."
 APP_NAME="$(sed -nE 's/^ *APP_NAME: *([A-Za-z0-9]+).*/\1/p' project.yml | head -1)"
@@ -38,8 +43,10 @@ if ! $LOCAL; then
     [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || die "main is not in sync with origin/main"
     ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || die "tag $TAG already exists"
     grep -q "^## \[$VERSION\]" CHANGELOG.md || die "CHANGELOG.md has no section for $VERSION"
-    security find-identity -v -p codesigning | grep -q "Developer ID Application" \
-        || die "no 'Developer ID Application' certificate in the keychain (see RELEASING.md)"
+    if $NOTARIZE; then
+        security find-identity -v -p codesigning | grep -q "Developer ID Application" \
+            || die "no 'Developer ID Application' certificate in the keychain (see RELEASING.md)"
+    fi
     command -v gh >/dev/null || die "gh CLI is required"
 fi
 
@@ -53,8 +60,8 @@ xcodebuild -project "$APP_NAME.xcodeproj" -scheme "$APP_NAME" -configuration Rel
     -derivedDataPath build/release/DD -archivePath "$OUT/$APP_NAME.xcarchive" \
     CURRENT_PROJECT_VERSION="$BUILD_NUMBER" archive -quiet
 
-if $LOCAL; then
-    # Development-signed app straight from the archive; enough to check the package layout.
+if ! $NOTARIZE; then
+    # Development-signed app straight from the archive (local dry run, or a pre-release without Developer ID).
     mkdir -p "$OUT/export"
     ditto "$OUT/$APP_NAME.xcarchive/Products/Applications/$APP_NAME.app" "$OUT/export/$APP_NAME.app"
 else
@@ -83,7 +90,7 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 SHORT_VERSION="$(defaults read "$PWD/$APP/Contents/Info" CFBundleShortVersionString)"
 [[ "$SHORT_VERSION" == "$VERSION" ]] || die "app reports version $SHORT_VERSION"
 
-if ! $LOCAL; then
+if $NOTARIZE; then
     step "Notarizing app"
     ditto -c -k --keepParent "$APP" "$OUT/notarize.zip"
     xcrun notarytool submit "$OUT/notarize.zip" --keychain-profile "$NOTARY_PROFILE" --wait
@@ -103,7 +110,7 @@ ln -s /Applications "$STAGING/Applications"
 hdiutil create -quiet -volname "$APP_NAME $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG"
 rm -rf "$STAGING"
 
-if ! $LOCAL; then
+if $NOTARIZE; then
     step "Signing and notarizing DMG"
     IDENTITY="$(security find-identity -v -p codesigning | sed -nE 's/.*"(Developer ID Application: [^"]+)".*/\1/p' | head -1)"
     codesign --sign "$IDENTITY" --timestamp "$DMG"
@@ -130,8 +137,20 @@ fi
 step "Tagging $TAG and creating a draft GitHub release"
 git tag -a "$TAG" -m "$APP_NAME $VERSION"
 git push origin "$TAG"
-PRERELEASE=()
-[[ "$VERSION" == *-* ]] && PRERELEASE=(--prerelease)
-gh release create "$TAG" "$DMG" "$ZIP" "$OUT/SHA256SUMS.txt" \
-    --draft ${PRERELEASE[@]+"${PRERELEASE[@]}"} --title "$APP_NAME $VERSION" --notes-file "$OUT/NOTES.md"
-step "Draft release created. Review it on GitHub and publish."
+if $NOTARIZE; then
+    PRERELEASE=()
+    [[ "$VERSION" == *-* ]] && PRERELEASE=(--prerelease)
+    gh release create "$TAG" "$DMG" "$ZIP" "$OUT/SHA256SUMS.txt" \
+        --draft ${PRERELEASE[@]+"${PRERELEASE[@]}"} --title "$APP_NAME $VERSION" --notes-file "$OUT/NOTES.md"
+    step "Draft release created. Review it on GitHub and publish."
+else
+    {
+        echo "> **Pre-release, not notarized.** On first launch macOS refuses to open it: right-click MacShot in"
+        echo "> Applications → **Open** → **Open**, once. Notarized releases will follow once Developer ID signing is set up."
+        echo
+        cat "$OUT/NOTES.md"
+    } > "$OUT/NOTES-prerelease.md"
+    gh release create "$TAG" "$DMG" "$ZIP" "$OUT/SHA256SUMS.txt" \
+        --prerelease --title "$APP_NAME $VERSION (pre-release)" --notes-file "$OUT/NOTES-prerelease.md"
+    step "Pre-release published."
+fi

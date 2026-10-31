@@ -34,6 +34,14 @@ Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR` for break
 
 Until the Developer ID certificate exists, `scripts/release.sh X.Y.Z --no-notarize` publishes a **pre-release** signed with the Apple Development identity (same checks, tag, DMG/ZIP and checksums; no notarization). The release notes tell users to right-click → Open once. When Developer ID is set up, ship the next version normally.
 
+## Branch protection
+
+`main` should only change through pull requests with a green CI. GitHub offers branch protection for private repositories only on Pro; once the repository is public (or on Pro), apply the stored rules:
+
+```bash
+gh api -X PUT repos/mucahitimre/MacShot/branches/main/protection --input .github/branch-protection.json
+```
+
 ## Fixing a bad release
 
 Do not move or force-push a published tag. Ship a new patch version (`X.Y.Z+1`). A draft release that was never published can be deleted together with its tag.

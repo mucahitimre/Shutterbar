@@ -134,7 +134,7 @@ if $LOCAL; then
     exit 0
 fi
 
-step "Tagging $TAG and creating a draft GitHub release"
+step "Tagging $TAG and creating the GitHub release"
 git tag -a "$TAG" -m "$APP_NAME $VERSION"
 git push origin "$TAG"
 if $NOTARIZE; then

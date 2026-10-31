@@ -119,35 +119,56 @@ public enum ScrollStitcher {
         return Double(equalRows) >= Double(sa.count) * 0.98
     }
 
-    /// The columns that scroll: the longest run of columns that are not *static content* (identical in both frames
-    /// and not a flat color — e.g. a fixed sidebar). Flat columns (page margins) stay in, since they may hold wider
-    /// content further down. Falls back to the full width when the run would be implausibly narrow.
+    /// The columns that scroll: the longest run of columns that are not *static content* — columns whose content
+    /// pixels (those differing from the column's dominant color) mostly stay put between the frames, e.g. a fixed
+    /// sidebar, even if a hover or fading label changes a few of its rows. Columns with almost no content (page
+    /// margins) stay in, since they may hold wider content further down. Falls back to the full width when the run
+    /// would be implausibly narrow.
     public static func scrollingColumns(_ a: PixelBuffer, _ b: PixelBuffer, minimumFraction: Double = 0.2) -> Range<Int> {
         let full = 0..<a.width
         guard a.width == b.width, a.height == b.height else { return full }
+        // Only rows that change count: a fixed header or footer would make every column through it look static.
+        func rowEqual(_ y: Int) -> Bool { (0..<a.width).allSatisfy { a.quantized($0, y) == b.quantized($0, y) } }
+        var top = 0
+        while top < a.height, rowEqual(top) { top += 1 }
+        var bottom = a.height
+        while bottom > top, rowEqual(bottom - 1) { bottom -= 1 }
+        guard bottom > top else { return full }
+        let rows = top..<bottom
+
         var bestStart = 0, bestLength = 0, runStart = 0
         for x in 0...a.width {
-            let isStatic: Bool
-            if x == a.width {
-                isStatic = true
-            } else {
-                var identical = true, flat = true
-                let top = a.quantized(x, 0)
-                for y in 0..<a.height {
-                    let pa = a.quantized(x, y)
-                    if identical, pa != b.quantized(x, y) { identical = false }
-                    if flat, pa != top { flat = false }
-                    if !identical, !flat { break }
-                }
-                isStatic = identical && !flat
-            }
-            if isStatic {
+            let isStatic = x < a.width && isStaticContentColumn(x, a, b, rows: rows)
+            if isStatic || x == a.width {
                 if x - runStart > bestLength { bestStart = runStart; bestLength = x - runStart }
                 runStart = x + 1
             }
         }
         guard Double(bestLength) >= Double(a.width) * minimumFraction else { return full }
         return bestStart..<(bestStart + bestLength)
+    }
+
+    static func isStaticContentColumn(_ x: Int, _ a: PixelBuffer, _ b: PixelBuffer, rows: Range<Int>? = nil,
+                                      minimumContent: Double = 0.02, minimumUnchanged: Double = 0.9) -> Bool {
+        let rows = rows ?? 0..<a.height
+        var counts: [Int: Int] = [:]
+        for y in rows {
+            let p = a.quantized(x, y)
+            counts[Int(p.0) << 10 | Int(p.1) << 5 | Int(p.2), default: 0] += 1
+        }
+        guard let dominant = counts.max(by: { $0.value < $1.value })?.key else { return false }
+        var content = 0, unchanged = 0, sameAsAbove = 0
+        for y in rows {
+            let p = a.quantized(x, y)
+            guard Int(p.0) << 10 | Int(p.1) << 5 | Int(p.2) != dominant else { continue }
+            content += 1
+            if p == b.quantized(x, y) { unchanged += 1 }
+            if y > rows.lowerBound, p == a.quantized(x, y - 1) { sameAsAbove += 1 }
+        }
+        guard Double(content) >= Double(rows.count) * minimumContent else { return false }
+        // A vertical line (card border, divider) looks the same after any vertical shift: no evidence either way.
+        guard Double(sameAsAbove) < Double(content) * 0.8 else { return false }
+        return Double(unchanged) >= Double(content) * minimumUnchanged
     }
 
     /// Fixed bands at the top and bottom (sticky headers / footers): rows identical at the same position in both frames.

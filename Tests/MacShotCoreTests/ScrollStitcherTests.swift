@@ -261,4 +261,31 @@ struct ScrollStitcherTests {
         #expect(ScrollStitcher.offset(from: a, to: b, top: 0, bottom: 0) == nil)
         #expect(ScrollStitcher.offset(from: a, to: b, top: 0, bottom: 0, expected: 60) == 60)
     }
+
+    @Test func sidebarWithASmallChangeIsStillStatic() throws {
+        // A fixed sidebar where a few rows change between frames (hover, a fading label): it must still be left out,
+        // otherwise its slice is appended with every frame and repeats down the result.
+        let sidebar: (Int, Int, Int) -> (UInt8, UInt8, UInt8) = { x, y, frame in
+            if (60..<66).contains(y), frame == 1 { return (230, 230, 230) } // a label that changed
+            return (UInt8((x * 9 + y * 5) % 251), 10, 200)
+        }
+        let a = try #require(PixelBuffer(image: makeImage(width: 100, height: 200) { x, y in
+            x >= 70 ? sidebar(x, y, 0) : (UInt8((x * 7 + y * 13) % 251), UInt8(y % 251), 40)
+        }))
+        let b = try #require(PixelBuffer(image: makeImage(width: 100, height: 200) { x, y in
+            x >= 70 ? sidebar(x, y, 1) : (UInt8((x * 7 + (y + 5) * 13) % 251), UInt8((y + 5) % 251), 40)
+        }))
+        #expect(ScrollStitcher.scrollingColumns(a, b) == 0..<70)
+    }
+
+    @Test func verticalLinesInScrollingContentStayInTheBand() throws {
+        // A card border inside the scrolling content is the same after a vertical shift; it must not split the band.
+        let content: (Int, Int) -> (UInt8, UInt8, UInt8) = { x, y in
+            if x == 40 || x == 41 { return (200, 200, 200) } // vertical border
+            return (UInt8((x * 7 + y * 13) % 251), UInt8(y % 251), 40)
+        }
+        let a = try #require(PixelBuffer(image: makeImage(width: 100, height: 200) { x, y in content(x, y) }))
+        let b = try #require(PixelBuffer(image: makeImage(width: 100, height: 200) { x, y in content(x, y + 5) }))
+        #expect(ScrollStitcher.scrollingColumns(a, b) == 0..<100)
+    }
 }

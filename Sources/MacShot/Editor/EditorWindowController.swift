@@ -104,6 +104,25 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
     }
 
     #if DEBUG
+    /// Showcase screenshots: a few annotations of different kinds, the window number, and a way to close.
+    func prepareShowcase() -> Int {
+        let w = CGFloat(canvas.image.width), h = CGFloat(canvas.image.height)
+        model.width = .medium
+        model.color = .red
+        model.add(.rectangle(CGRect(x: w * 0.06, y: h * 0.14, width: w * 0.62, height: h * 0.16)))
+        model.add(.number(1, center: CGPoint(x: w * 0.06, y: h * 0.14)))
+        model.add(.arrow(from: CGPoint(x: w * 0.74, y: h * 0.42), to: CGPoint(x: w * 0.6, y: h * 0.31)))
+        model.width = .thin
+        model.color = .blue
+        model.add(.text("Selected with MacShot", origin: CGPoint(x: w * 0.6, y: h * 0.43)))
+        model.add(.pixelate(CGRect(x: w * 0.06, y: h * 0.84, width: w * 0.28, height: h * 0.1)))
+        model.width = .medium
+        model.tool = .arrow
+        return window.windowNumber
+    }
+
+    func closeShowcase() { close(with: .cancelled) }
+
     /// Self-test: adds one mark per tool, writes the window contents to `url`, then Done.
     func runSelfTest(snapshotTo url: URL) {
         let w = CGFloat(canvas.image.width), h = CGFloat(canvas.image.height)

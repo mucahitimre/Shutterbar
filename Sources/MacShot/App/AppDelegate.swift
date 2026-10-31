@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.app.info("Channel: sandboxed=\(Channel.isSandboxed), autoScroll=\(Channel.supportsAutoScroll), version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?", privacy: .public)")
         // The delegate that handles notification clicks must be set up at launch.
         _ = capture
 
@@ -50,6 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Development: `-MacShotScrollingSelfTest` runs a scrolling session on the area under the mouse.
         if ProcessInfo.processInfo.arguments.contains("-MacShotScrollingSelfTest") {
             AutoScrollProbe.runSession()
+            return
+        }
+        // Development: `-MacShotShowcase` makes the README screenshots from the frontmost Safari window.
+        if ProcessInfo.processInfo.arguments.contains("-MacShotShowcase") {
+            Showcase.run()
             return
         }
         // Development: `-MacShotShowWindows` opens settings and onboarding (layout checks).

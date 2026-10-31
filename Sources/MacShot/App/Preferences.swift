@@ -11,6 +11,7 @@ final class Preferences: ObservableObject {
         static let saveFolderBookmark = "saveFolderBookmark"
         static let quickCapture = "quickCapture"
         static let magnifier = "magnifier"
+        static let magnifierPixelCount = "magnifierPixelCount"
     }
 
     private let defaults: UserDefaults
@@ -28,6 +29,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(magnifier, forKey: Key.magnifier) }
     }
 
+    /// Büyütecin kenarındaki piksel sayısı; overlay'de tekerlekle değişir.
+    @Published var magnifierPixelCount: Int {
+        didSet { defaults.set(magnifierPixelCount, forKey: Key.magnifierPixelCount) }
+    }
+
     /// Kullanıcının seçtiği klasörün security-scoped bookmark'ı; yoksa varsayılan klasör.
     @Published var saveFolderBookmark: Data? {
         didSet { defaults.set(saveFolderBookmark, forKey: Key.saveFolderBookmark) }
@@ -39,10 +45,12 @@ final class Preferences: ObservableObject {
             Key.afterCaptureTasks: AfterCaptureTask.defaults.rawValue,
             Key.quickCapture: false,
             Key.magnifier: true,
+            Key.magnifierPixelCount: 15,
         ])
         afterCaptureTasks = AfterCaptureTask(rawValue: defaults.integer(forKey: Key.afterCaptureTasks))
         quickCapture = defaults.bool(forKey: Key.quickCapture)
         magnifier = defaults.bool(forKey: Key.magnifier)
+        magnifierPixelCount = defaults.integer(forKey: Key.magnifierPixelCount)
         saveFolderBookmark = defaults.data(forKey: Key.saveFolderBookmark)
     }
 

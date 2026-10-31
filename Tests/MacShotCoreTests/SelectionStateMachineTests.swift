@@ -186,4 +186,11 @@ struct SelectionStateMachineTests {
         var sm = machine(preview: last)
         #expect(sm.key(.copy) == .copy(last))
     }
+
+    @Test func digitSelectsScreen() {
+        var sm = machine()
+        #expect(sm.key(.screen(0)) == .captureScreen(0))
+        #expect(sm.key(.screen(9)) == .captureScreen(9))
+        #expect(sm.key(.screen(-1)) == .none)
+    }
 }

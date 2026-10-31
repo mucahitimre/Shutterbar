@@ -7,6 +7,7 @@ protocol OverlayViewDelegate: AnyObject {
     func overlayView(_ view: OverlayView, didProduce output: SelectionStateMachine.Output)
     func overlayViewDidBeginSelection(_ view: OverlayView)
     func overlayViewMouseEntered(_ view: OverlayView)
+    func overlayView(_ view: OverlayView, didChangeMagnifierPixelCount count: Int)
 }
 
 /// Donmuş kareyi gösterir, seçim dışını karartır, seçim çerçevesini ve etiketleri çizer.
@@ -26,8 +27,9 @@ final class OverlayView: NSView {
     private let cursorLabel = OverlayView.makeLabel()
     private let hudLabel = OverlayView.makeLabel(fontSize: 14)
     private let magnifier: MagnifierView?
+    private var scrollAccumulator: CGFloat = 0
 
-    init(snapshot: DisplaySnapshot, quickCapture: Bool, magnifier showsMagnifier: Bool, preview: CGRect?) {
+    init(snapshot: DisplaySnapshot, quickCapture: Bool, magnifierPixelCount: Int?, preview: CGRect?) {
         self.snapshot = snapshot
         self.machine = SelectionStateMachine(
             bounds: snapshot.frame.size,
@@ -35,7 +37,7 @@ final class OverlayView: NSView {
             quickCapture: quickCapture,
             preview: preview
         )
-        magnifier = showsMagnifier ? MagnifierView(image: snapshot.image) : nil
+        magnifier = magnifierPixelCount.map { MagnifierView(image: snapshot.image, pixelCount: $0) }
         super.init(frame: CGRect(origin: .zero, size: snapshot.frame.size))
         wantsLayer = true
 
@@ -131,6 +133,11 @@ final class OverlayView: NSView {
         }
     }
 
+    func setMagnifierPixelCount(_ count: Int) {
+        magnifier?.setPixelCount(count)
+        refresh()
+    }
+
     func updateCursor(fromGlobal location: CGPoint) {
         machine.mouseMoved(to: CaptureGeometry.toDisplayLocal(location, displayFrame: snapshot.frame))
         refresh()
@@ -166,6 +173,23 @@ final class OverlayView: NSView {
         let output = machine.mouseUp(at: location(of: event))
         refresh()
         emit(output)
+    }
+
+    /// Tekerlek: büyüteç boyutu (yukarı büyütür). Ekranlar arasında eşitlenir.
+    override func scrollWheel(with event: NSEvent) {
+        guard let magnifier, event.scrollingDeltaY != 0 else { return }
+        // Trackpad tek harekette çok olay üretir; delta birikince bir adım say.
+        if event.hasPreciseScrollingDeltas {
+            scrollAccumulator += event.scrollingDeltaY
+            guard abs(scrollAccumulator) >= 12 else { return }
+        } else {
+            scrollAccumulator = event.scrollingDeltaY
+        }
+        let step = scrollAccumulator > 0 ? 2 : -2
+        scrollAccumulator = 0
+        let count = MagnifierView.normalized(magnifier.pixelCount + step)
+        guard count != magnifier.pixelCount else { return }
+        delegate?.overlayView(self, didChangeMagnifierPixelCount: count)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -211,6 +235,11 @@ final class OverlayView: NSView {
         case kVK_Space: return .space
         // ~ / ` : ANSI'de Grave, ISO klavyelerde (TR dahil) sol üst tuş Section olarak gelebilir.
         case kVK_ANSI_Grave, kVK_ISO_Section: return .activeScreen
+        case kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+             kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0:
+            let flags = event.modifierFlags.intersection([.command, .control, .option])
+            guard flags.isEmpty else { return nil }
+            return .screen(screenIndex(forDigitKey: Int(event.keyCode)))
         case kVK_LeftArrow: return .arrow(dx: -1, dy: 0)
         case kVK_RightArrow: return .arrow(dx: 1, dy: 0)
         case kVK_UpArrow: return .arrow(dx: 0, dy: -1)
@@ -224,6 +253,13 @@ final class OverlayView: NSView {
     }
 
     // MARK: Yardımcılar
+
+    /// 1 → 0, …, 9 → 8, 0 → 9 (keyCode'lar ardışık değil).
+    private static func screenIndex(forDigitKey keyCode: Int) -> Int {
+        let order = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+                     kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0]
+        return order.firstIndex(of: keyCode) ?? -1
+    }
 
     private func emit(_ output: SelectionStateMachine.Output) {
         guard output != .none else { return }
@@ -307,7 +343,7 @@ final class OverlayView: NSView {
 
         // İmlecin sağ-altına büyüteç + altında koordinat; sığmazsa sola / yukarı çevir.
         let gap: CGFloat = 16
-        let magnifierSize = magnifier == nil ? .zero : CGSize(width: MagnifierView.side, height: MagnifierView.side + 4)
+        let magnifierSize = magnifier.map { CGSize(width: $0.side, height: $0.side + 4) } ?? .zero
         let block = CGSize(
             width: max(magnifierSize.width, cursorLabel.frame.width),
             height: magnifierSize.height + cursorLabel.frame.height

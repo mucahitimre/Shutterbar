@@ -23,18 +23,21 @@ final class OverlayController: OverlayViewDelegate {
 
     var isPresented: Bool { continuation != nil }
 
+    /// Tekerlekle değişen büyüteç boyutu; kalıcı tutmak için çağıran dinler.
+    var onMagnifierPixelCountChange: ((Int) -> Void)?
+
     /// - Parameter preview: son bölgenin hangi ekranda (displayID) hangi rect olduğu.
     func run(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
-        magnifier: Bool,
+        magnifierPixelCount: Int?,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
         hud: String? = nil,
         onPresented: @escaping () -> Void
     ) async -> OverlayResult {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
-            present(snapshots: snapshots, quickCapture: quickCapture, magnifier: magnifier, preview: preview, hud: hud)
+            present(snapshots: snapshots, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount, preview: preview, hud: hud)
             onPresented()
         }
     }
@@ -42,7 +45,7 @@ final class OverlayController: OverlayViewDelegate {
     private func present(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
-        magnifier: Bool,
+        magnifierPixelCount: Int?,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
         hud: String?
     ) {
@@ -54,7 +57,7 @@ final class OverlayController: OverlayViewDelegate {
             guard let screen = screens.first(where: { $0.displayID == snapshot.displayID }) else { continue }
             let panel = OverlayPanel(screen: screen)
             let previewRect = preview?.displayID == snapshot.displayID ? preview?.rect : nil
-            let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, magnifier: magnifier, preview: previewRect)
+            let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount, preview: previewRect)
             view.delegate = self
             panel.contentView = view
             panel.orderFrontRegardless()
@@ -112,6 +115,15 @@ final class OverlayController: OverlayViewDelegate {
             let mouse = NSEvent.mouseLocation
             let snapshot = views.first { $0.snapshot.frame.contains(mouse) }?.snapshot ?? view.snapshot
             finish(.screens([snapshot]))
+        case .captureScreen(let index):
+            let screens = NSScreen.screens
+            guard index < screens.count,
+                  let snapshot = views.first(where: { $0.snapshot.displayID == screens[index].displayID })?.snapshot
+            else {
+                NSSound.beep()
+                return
+            }
+            finish(.screens([snapshot]))
         case .warpCursor(let point):
             let primaryHeight = NSScreen.screens.first?.frame.height ?? view.snapshot.frame.height
             CGWarpMouseCursorPosition(CaptureGeometry.toQuartzGlobal(point, displayFrame: view.snapshot.frame, primaryScreenHeight: primaryHeight))
@@ -122,6 +134,13 @@ final class OverlayController: OverlayViewDelegate {
         for other in views where other !== view {
             other.resetSelection()
         }
+    }
+
+    func overlayView(_ view: OverlayView, didChangeMagnifierPixelCount count: Int) {
+        for view in views {
+            view.setMagnifierPixelCount(count)
+        }
+        onMagnifierPixelCountChange?(count)
     }
 
     func overlayViewMouseEntered(_ view: OverlayView) {

@@ -18,6 +18,8 @@ public struct SelectionStateMachine: Sendable {
         case escape, enter, delete, space, activeScreen
         /// ⌘C: seçimi yalnız panoya al.
         case copy
+        /// 1…9, 0: sıradaki monitörün tamamı (0 = onuncu). Sıfır tabanlı indeks.
+        case screen(Int)
         case arrow(dx: Int, dy: Int)
     }
 
@@ -38,6 +40,8 @@ public struct SelectionStateMachine: Sendable {
         case cancel
         case captureAllScreens
         case captureActiveScreen
+        /// `NSScreen.screens` sırasında sıfır tabanlı indeks.
+        case captureScreen(Int)
         /// Gerçek imleci bu display-local noktaya taşı.
         case warpCursor(CGPoint)
     }
@@ -182,6 +186,8 @@ public struct SelectionStateMachine: Sendable {
             return .captureAllScreens
         case .activeScreen:
             return .captureActiveScreen
+        case .screen(let index):
+            return index >= 0 ? .captureScreen(index) : .none
         case .arrow(let dx, let dy):
             let step = (modifiers.contains(.shift) ? 10 : 1) / pixelScale
             let delta = CGVector(dx: CGFloat(dx) * step, dy: CGFloat(dy) * step)

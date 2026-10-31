@@ -19,6 +19,7 @@ final class CaptureCoordinator {
         self.preferences = preferences
         self.output = CaptureOutput(preferences: preferences)
         self.onPermissionMissing = onPermissionMissing
+        overlay.onMagnifierPixelCountChange = { [preferences] in preferences.magnifierPixelCount = $0 }
     }
 
     func captureRegion() {
@@ -57,7 +58,7 @@ final class CaptureCoordinator {
         let result = await overlay.run(
             snapshots: snapshots,
             quickCapture: preferences.quickCapture,
-            magnifier: preferences.magnifier,
+            magnifierPixelCount: preferences.magnifier ? preferences.magnifierPixelCount : nil,
             preview: preview(for: snapshots),
             hud: hud
         ) {

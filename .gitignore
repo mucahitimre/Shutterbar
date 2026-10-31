@@ -6,4 +6,5 @@ DerivedData/
 .swiftpm/
 xcuserdata/
 Config/Local.xcconfig
-.claude/worktrees/
+# Local working notes of the maintainer's tooling (kept on disk, not in the repository)
+.claude/

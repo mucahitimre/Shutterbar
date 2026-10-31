@@ -27,13 +27,14 @@ final class OverlayController: OverlayViewDelegate {
     func run(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
+        magnifier: Bool,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
         hud: String? = nil,
         onPresented: @escaping () -> Void
     ) async -> OverlayResult {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
-            present(snapshots: snapshots, quickCapture: quickCapture, preview: preview, hud: hud)
+            present(snapshots: snapshots, quickCapture: quickCapture, magnifier: magnifier, preview: preview, hud: hud)
             onPresented()
         }
     }
@@ -41,6 +42,7 @@ final class OverlayController: OverlayViewDelegate {
     private func present(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
+        magnifier: Bool,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
         hud: String?
     ) {
@@ -52,7 +54,7 @@ final class OverlayController: OverlayViewDelegate {
             guard let screen = screens.first(where: { $0.displayID == snapshot.displayID }) else { continue }
             let panel = OverlayPanel(screen: screen)
             let previewRect = preview?.displayID == snapshot.displayID ? preview?.rect : nil
-            let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, preview: previewRect)
+            let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, magnifier: magnifier, preview: previewRect)
             view.delegate = self
             panel.contentView = view
             panel.orderFrontRegardless()

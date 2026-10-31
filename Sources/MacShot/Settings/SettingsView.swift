@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var hotkeys: HotkeyManager
     @ObservedObject var preferences: Preferences
+    @StateObject private var loginItem = LoginItem()
     let openOnboarding: () -> Void
 
     var body: some View {
@@ -32,6 +33,7 @@ struct SettingsView: View {
                      : "Seçim Enter'a kadar taşınabilir / boyutlandırılabilir. Enter: after-capture task'ları, ⌘C: yalnız pano.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("Büyüteç", isOn: $preferences.magnifier)
             }
 
             Section("After capture") {
@@ -67,6 +69,24 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Genel") {
+                Toggle("Oturum açılışında başlat", isOn: Binding(
+                    get: { loginItem.isEnabled },
+                    set: { loginItem.setEnabled($0) }
+                ))
+                if loginItem.status == .requiresApproval {
+                    HStack {
+                        Label("Sistem Ayarları > Giriş Öğeleri'nde onay bekliyor.", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Button("Aç") { loginItem.openSystemSettings() }
+                    }
+                }
+                if let error = loginItem.lastError {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+            }
+
             Section("İzin") {
                 HStack {
                     PermissionStatusLabel()
@@ -76,6 +96,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            loginItem.refresh()
+        }
         .frame(width: 500)
         .fixedSize()
     }

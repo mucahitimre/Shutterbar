@@ -57,6 +57,7 @@ final class CaptureCoordinator {
         let result = await overlay.run(
             snapshots: snapshots,
             quickCapture: preferences.quickCapture,
+            magnifier: preferences.magnifier,
             preview: preview(for: snapshots),
             hud: hud
         ) {

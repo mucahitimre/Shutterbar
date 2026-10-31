@@ -25,8 +25,9 @@ final class OverlayView: NSView {
     private let sizeLabel = OverlayView.makeLabel()
     private let cursorLabel = OverlayView.makeLabel()
     private let hudLabel = OverlayView.makeLabel(fontSize: 14)
+    private let magnifier: MagnifierView?
 
-    init(snapshot: DisplaySnapshot, quickCapture: Bool, preview: CGRect?) {
+    init(snapshot: DisplaySnapshot, quickCapture: Bool, magnifier showsMagnifier: Bool, preview: CGRect?) {
         self.snapshot = snapshot
         self.machine = SelectionStateMachine(
             bounds: snapshot.frame.size,
@@ -34,6 +35,7 @@ final class OverlayView: NSView {
             quickCapture: quickCapture,
             preview: preview
         )
+        magnifier = showsMagnifier ? MagnifierView(image: snapshot.image) : nil
         super.init(frame: CGRect(origin: .zero, size: snapshot.frame.size))
         wantsLayer = true
 
@@ -74,6 +76,7 @@ final class OverlayView: NSView {
         }
         addSubview(overlay)
         addSubview(sizeLabel)
+        if let magnifier { addSubview(magnifier) }
         addSubview(cursorLabel)
         addSubview(hudLabel)
 
@@ -298,12 +301,26 @@ final class OverlayView: NSView {
         }
 
         let cursor = machine.cursor
-        cursorLabel.stringValue = "\(Int(floor(cursor.x * snapshot.scale))), \(Int(floor(cursor.y * snapshot.scale)))"
+        let pixel = CGPoint(x: floor(cursor.x * snapshot.scale), y: floor(cursor.y * snapshot.scale))
+        cursorLabel.stringValue = "\(Int(pixel.x)), \(Int(pixel.y))"
         cursorLabel.sizeToFit()
-        var labelOrigin = CGPoint(x: cursor.x + 16, y: cursor.y + 16)
-        if labelOrigin.x + cursorLabel.frame.width > bounds.width { labelOrigin.x = cursor.x - 16 - cursorLabel.frame.width }
-        if labelOrigin.y + cursorLabel.frame.height > bounds.height { labelOrigin.y = cursor.y - 16 - cursorLabel.frame.height }
-        cursorLabel.setFrameOrigin(labelOrigin)
+
+        // İmlecin sağ-altına büyüteç + altında koordinat; sığmazsa sola / yukarı çevir.
+        let gap: CGFloat = 16
+        let magnifierSize = magnifier == nil ? .zero : CGSize(width: MagnifierView.side, height: MagnifierView.side + 4)
+        let block = CGSize(
+            width: max(magnifierSize.width, cursorLabel.frame.width),
+            height: magnifierSize.height + cursorLabel.frame.height
+        )
+        var origin = CGPoint(x: cursor.x + gap, y: cursor.y + gap)
+        if origin.x + block.width > bounds.width { origin.x = cursor.x - gap - block.width }
+        if origin.y + block.height > bounds.height { origin.y = cursor.y - gap - block.height }
+        if let magnifier {
+            magnifier.update(pixel: pixel)
+            magnifier.setFrameOrigin(origin)
+            magnifier.isHidden = false
+        }
+        cursorLabel.setFrameOrigin(CGPoint(x: origin.x, y: origin.y + magnifierSize.height))
         cursorLabel.isHidden = false
     }
 

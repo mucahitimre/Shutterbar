@@ -32,7 +32,7 @@ xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD 
 
 Pure logic (geometry, selection state machine, file naming, last region decisions, window detection, annotations) lives in the `MacShotCore` framework and is tested without a host app.
 
-In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed).
+In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), and `--args -MacShotShowWindows` opens Settings and onboarding.
 
 Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 
@@ -43,7 +43,15 @@ Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 | ⌘⇧X | Capture region: screens freeze, select a region |
 | ⌥⇧5 | Capture last region: captures the last region without opening the overlay |
 
-Shortcuts can be changed in Settings. Inside the overlay:
+Shortcuts can be changed in Settings. The overlay opens with a toolbar at the bottom of the screen, modeled on macOS's own screenshot toolbar:
+
+- **Modes:** Capture Entire Screen (click a screen), Capture Selected Window (hover highlights a window, click captures it), Capture Selected Portion (drag a region).
+- **Options:** save location, after-capture tasks, self-timer (5 / 10 seconds: choose on the frozen frame, captured live after the countdown), floating thumbnail, remember last selection, magnifier, quick capture, window detection, sound.
+- **Capture** (same as Enter) and **Close** (same as Esc).
+
+After a capture a thumbnail appears in the bottom-right corner for a few seconds: click it to annotate (the saved file is replaced), drag it into another app, swipe right to dismiss, or right-click for more.
+
+Keys inside the overlay:
 
 | Key / mouse | Action |
 |---|---|
@@ -77,7 +85,7 @@ When the "Open annotation editor" task is selected, the capture opens in the edi
 | ⌘C / Copy | Clipboard only |
 | Esc / close window | Cancel (image discarded) |
 
-Color and line width are chosen in the toolbar. Annotations are stored in image pixels and drawn by the same code on screen and in the output.
+The editor uses a native unified toolbar: tools, color and line width menus, undo/redo, Share, Copy and Done. Annotations are stored in image pixels and drawn by the same code on screen and in the output.
 
 ## Permission
 
@@ -96,15 +104,16 @@ Sources/MacShotCore/   pure logic, tested without a host app
   AfterCapture           task set + failure-isolating runner
   LastRegion             model, UserDefaults store, validity decision
   WindowSnap             window rects (Quartz → display-local), hit testing
+  CaptureMode            selection / window / screen modes, self-timer
   Annotation             model, undo/redo, CoreGraphics/CoreText renderer
   FileNamer, ImageCropper (PNGEncoder), HotkeyRegistration
 Sources/MacShot/
   App/         AppDelegate, menu bar, hotkeys, preferences
   Capture/     ScreenSnapshotService (ScreenCaptureKit), WindowList, CaptureCoordinator
-  Overlay/     one NSPanel per screen, OverlayView, MagnifierView
+  Overlay/     one NSPanel per screen, OverlayView, MagnifierView, CaptureToolbar, Countdown
   Editor/      annotation editor (model, canvas, window)
-  Output/      CaptureOutput, Clipboard, SaveFolder, Notifier
-  Settings/    SwiftUI settings, LoginItem (SMAppService)
+  Output/      CaptureOutput, Clipboard, SaveFolder, Notifier, ThumbnailPanel
+  Settings/    tabbed settings (General / Capture / After Capture / Shortcuts), LoginItem (SMAppService)
   Onboarding/  permission flow
 ```
 
@@ -115,6 +124,7 @@ Freeze: on the hotkey all screens are captured in parallel with `SCScreenshotMan
 - No selection spanning multiple screens; the selection is clamped to the screen where it started.
 - Only window detection, no control (button etc.) detection.
 - Drawn annotations cannot be selected, moved or deleted individually; use undo.
+- The self-timer captures the region live after the countdown, so it is the only path that does not use the frozen frame.
 - Launch at login also works for Debug builds under `build/`, but moving the app requires re-enabling it; install into `/Applications` for regular use.
 
 ## Releasing

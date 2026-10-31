@@ -42,6 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             capture.runRegionSelfTest()
             return
         }
+        // Development: `-MacShotAutoScrollProbe` tests whether synthetic scrolling works from the sandbox.
+        if ProcessInfo.processInfo.arguments.contains("-MacShotAutoScrollProbe") {
+            AutoScrollProbe.run()
+            return
+        }
         // Development: `-MacShotShowWindows` opens settings and onboarding (layout checks).
         if ProcessInfo.processInfo.arguments.contains("-MacShotShowWindows") {
             settings?.show()

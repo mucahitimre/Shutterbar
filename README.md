@@ -1,8 +1,56 @@
-# MacShot
+<p align="center">
+  <img src="docs/images/logo.png" width="128" alt="MacShot">
+</p>
 
-A minimal macOS menu bar app that brings ShareX's region capture flow to the Mac: freeze the screen, select a region, run after-capture tasks, and remember the last region.
+<h1 align="center">MacShot</h1>
 
-Original planning document: [docs/plan.md](docs/plan.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
+<p align="center">
+  <strong>ShareX-style screenshots for the Mac — freeze, select, annotate, done.</strong><br>
+  <sub>A native menu bar app: frozen-screen region capture, window and scrolling capture, an annotation editor and after-capture tasks.<br>Built with ScreenCaptureKit and AppKit. No account, no cloud, nothing leaves your Mac.</sub>
+</p>
+
+<p align="center">
+  <a href="https://github.com/mucahitimre/MacShot/releases"><img src="https://img.shields.io/badge/download-latest-6366f1" alt="download"></a>
+  <a href="https://github.com/mucahitimre/MacShot/actions/workflows/ci.yml"><img src="https://github.com/mucahitimre/MacShot/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-black?logo=apple" alt="macOS 14+">
+  <img src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white" alt="Swift 6">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="CHANGELOG.md">Changelog</a> · <a href="RELEASING.md">Releasing</a> · <a href="docs/manual-test.md">Manual tests</a> · <a href="docs/plan.md">Original plan</a>
+</p>
+
+<!-- Hero screenshot: docs/images/screenshot.png (capture toolbar over a neutral page) -->
+
+---
+
+## Why MacShot
+
+macOS's built-in screenshots are good, but if you came from ShareX you miss things:
+
+- ✗ The screen keeps moving while you select — menus close, hovers disappear
+- ✗ No "do this after every capture" pipeline (save, copy, reveal, annotate)
+- ✗ No way to grab the same region again with one shortcut
+- ✗ No scrolling screenshots of long pages
+- ✗ Annotating means opening another app
+
+## The Solution
+
+**Press ⌘⇧X.** The screen freezes instantly, you select a region (or click a window), and MacShot runs your after-capture tasks — all from the menu bar, all local.
+
+| | |
+|---|---|
+| 🧊 **Frozen screen** | Every display is captured first; you select on a still image, so menus and hover states stay put |
+| 🎯 **Pixel-accurate regions** | Magnifier, arrow-key nudging, size labels, square selection, move and resize until Enter |
+| 🪟 **Window & screen modes** | Hover highlights a window with the camera cursor, click to capture — like macOS, plus detection in region mode |
+| 📜 **Scrolling capture** | Long pages stitched into one image; automatic scrolling that stops at the end and never takes over your mouse |
+| ✏️ **Annotation editor** | Arrow, rectangle, text, pixelate, numbered steps — native toolbar, undo/redo, share |
+| ⚡ **After-capture tasks** | Save, copy (PNG + TIFF), show in Finder, notify — in order, each failure isolated |
+| 🔁 **Last region** | Remembered across relaunches; ⌥⇧5 captures it again without the overlay |
+| 🖼️ **Floating thumbnail** | Click to annotate, drag into any app, swipe to dismiss |
+| ⏱️ **Self-timer & sound** | 5 / 10 second timer, system shutter sound |
+| 🍎 **Native** | Follows macOS's own screenshot UI, light and dark mode, Reduce Motion |
 
 ## Install
 
@@ -139,6 +187,14 @@ Freeze: on the hotkey all screens are captured in parallel with `SCScreenshotMan
 - Scrolling capture needs overlapping content between frames; an area that is entirely blank while you scroll past it cannot be matched (the frame is skipped).
 - Automatic scrolling needs the Accessibility permission and is only available in the GitHub (non-sandboxed) build.
 - Launch at login also works for Debug builds under `build/`, but moving the app requires re-enabling it; install into `/Applications` for regular use.
+
+## Roadmap
+
+- [ ] Signed and notarized releases on GitHub (Developer ID)
+- [ ] Mac App Store build (sandboxed, manual scrolling) — see [docs/app-store.md](docs/app-store.md)
+- [ ] Selecting, moving and deleting individual annotations
+- [ ] Selections spanning several displays
+- [ ] Control (button) detection next to window detection
 
 ## Releasing
 

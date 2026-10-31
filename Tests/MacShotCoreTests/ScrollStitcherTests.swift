@@ -1,0 +1,172 @@
+import CoreGraphics
+import Foundation
+import MacShotCore
+import Testing
+
+/// A synthetic page: distinct rows, some flat blank blocks, plus a sticky header and footer added per frame.
+fileprivate struct Page {
+    static let width = 120
+    let height: Int
+    let header = 24, footer = 16, viewport = 200
+
+    /// RGBA8 rows, top to bottom.
+    func pixel(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) {
+        if (300..<330).contains(y) || (610..<640).contains(y) || (900..<1000).contains(y) { return (250, 250, 250) } // flat blank blocks
+        // Non-repeating rows (a periodic pattern would create false matches).
+        let row = Page.mix(UInt64(y))
+        let v = Page.mix(row &+ UInt64(x / 12))
+        return (UInt8(truncatingIfNeeded: v), UInt8(truncatingIfNeeded: v >> 8), UInt8(truncatingIfNeeded: row >> 16))
+    }
+
+    static func mix(_ value: UInt64) -> UInt64 {
+        var z = value &+ 0x9E37_79B9_7F4A_7C15
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+
+    func header(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) { (UInt8(40 + y), 20, UInt8(x % 200)) }
+    func footer(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) { (10, UInt8(60 + y), UInt8((x * 2) % 200)) }
+
+    /// The frame visible at scroll offset `s`. `noise` changes the trailing 8 columns (an overlay scroll bar).
+    func frame(at s: Int, noise: UInt8 = 0) -> CGImage {
+        makeImage(width: Page.width, height: viewport) { x, y in
+            if x >= Page.width - 8 { return (noise, noise, noise) }
+            if y < header { return self.header(x, y) }
+            if y >= viewport - footer { return self.footer(x, y - (viewport - footer)) }
+            return pixel(x, s + y - header)
+        }
+    }
+
+    /// What the stitched result should be after scrolling to `s`.
+    func expected(lastScroll s: Int) -> CGImage {
+        let content = viewport - header - footer
+        let total = header + s + content + footer
+        return makeImage(width: Page.width, height: total) { x, y in
+            if y < header { return self.header(x, y) }
+            if y >= total - footer { return self.footer(x, y - (total - footer)) }
+            return pixel(x, y - header)
+        }
+    }
+}
+
+private func makeImage(width: Int, height: Int, _ color: (Int, Int) -> (UInt8, UInt8, UInt8)) -> CGImage {
+    var bytes = [UInt8](repeating: 255, count: width * height * 4)
+    for y in 0..<height {
+        for x in 0..<width {
+            let (r, g, b) = color(x, y)
+            let i = (y * width + x) * 4
+            bytes[i] = r; bytes[i + 1] = g; bytes[i + 2] = b
+        }
+    }
+    let provider = CGDataProvider(data: Data(bytes) as CFData)!
+    return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+                   space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                   provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+}
+
+private func rgba(_ image: CGImage) -> [UInt8] {
+    var buffer = [UInt8](repeating: 0, count: image.width * image.height * 4)
+    buffer.withUnsafeMutableBytes { raw in
+        let ctx = CGContext(data: raw.baseAddress, width: image.width, height: image.height, bitsPerComponent: 8,
+                            bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    }
+    return buffer
+}
+
+/// Compares two images ignoring the trailing scroll-bar columns.
+private func sameIgnoringTrailing(_ a: CGImage, _ b: CGImage, trailing: Int) -> Bool {
+    guard a.width == b.width, a.height == b.height else { return false }
+    let pa = rgba(a), pb = rgba(b)
+    for y in 0..<a.height {
+        for x in 0..<(a.width - trailing) {
+            let i = (y * a.width + x) * 4
+            if pa[i] != pb[i] || pa[i + 1] != pb[i + 1] || pa[i + 2] != pb[i + 2] { return false }
+        }
+    }
+    return true
+}
+
+struct ScrollStitcherTests {
+    fileprivate let page = Page(height: 1200)
+
+    @Test func comparatorDetectsDifferences() {
+        // Validate the measuring tool first.
+        #expect(sameIgnoringTrailing(page.frame(at: 0), page.frame(at: 0, noise: 99), trailing: 8))
+        #expect(!sameIgnoringTrailing(page.frame(at: 0), page.frame(at: 1), trailing: 8))
+    }
+
+    @Test func staticBandsFindHeaderAndFooter() throws {
+        let a = try #require(RowSignatures(image: page.frame(at: 0), excludingTrailing: 8))
+        let b = try #require(RowSignatures(image: page.frame(at: 50), excludingTrailing: 8))
+        let bands = ScrollStitcher.staticBands(a, b)
+        #expect(bands.top == page.header)
+        #expect(bands.bottom == page.footer)
+    }
+
+    @Test func offsetMatchesScrollDistance() throws {
+        let a = try #require(RowSignatures(image: page.frame(at: 100), excludingTrailing: 8))
+        let b = try #require(RowSignatures(image: page.frame(at: 163), excludingTrailing: 8))
+        #expect(ScrollStitcher.offset(from: a, to: b, top: page.header, bottom: page.footer) == 63)
+        #expect(ScrollStitcher.offset(from: a, to: a, top: page.header, bottom: page.footer) == 0)
+    }
+
+    @Test func scrollingUpOrTooFarIsNotMatched() throws {
+        let a = try #require(RowSignatures(image: page.frame(at: 400), excludingTrailing: 8))
+        let up = try #require(RowSignatures(image: page.frame(at: 350), excludingTrailing: 8))
+        let far = try #require(RowSignatures(image: page.frame(at: 560), excludingTrailing: 8))
+        #expect(ScrollStitcher.offset(from: a, to: up, top: page.header, bottom: page.footer) == nil)
+        #expect(ScrollStitcher.offset(from: a, to: far, top: page.header, bottom: page.footer) == nil)
+    }
+
+    @Test func stitchesFramesIntoThePage() throws {
+        var capture = ScrollingCapture(excludedTrailingColumns: 8)
+        let scrolls = [0, 40, 40, 95, 180, 290, 345, 420, 530, 640, 700]
+        var results: [ScrollingCapture.AddResult] = []
+        for (i, s) in scrolls.enumerated() {
+            results.append(capture.add(page.frame(at: s, noise: UInt8(i * 20))))
+        }
+        #expect(results[0] == .first)
+        #expect(results[2] == .unchanged)
+        #expect(!results.contains(.lost))
+        let image = try #require(capture.makeImage())
+        #expect(image.height == page.header + 700 + (page.viewport - page.header - page.footer) + page.footer)
+        #expect(sameIgnoringTrailing(image, page.expected(lastScroll: 700), trailing: 8))
+    }
+
+    @Test func lostFrameIsSkippedAndStitchingContinues() throws {
+        var capture = ScrollingCapture(excludedTrailingColumns: 8)
+        _ = capture.add(page.frame(at: 0))
+        _ = capture.add(page.frame(at: 60))
+        #expect(capture.add(page.frame(at: 400)) == .lost)
+        #expect(capture.add(page.frame(at: 120)) == .appended(60))
+        let image = try #require(capture.makeImage())
+        #expect(sameIgnoringTrailing(image, page.expected(lastScroll: 120), trailing: 8))
+    }
+
+    @Test func singleFrameReturnsItself() throws {
+        var capture = ScrollingCapture()
+        let frame = page.frame(at: 0)
+        _ = capture.add(frame)
+        #expect(capture.height == frame.height)
+        let image = try #require(capture.makeImage())
+        #expect(sameIgnoringTrailing(image, frame, trailing: 0))
+    }
+
+    @Test func stopsAtMaximumHeight() {
+        var capture = ScrollingCapture(maximumHeight: 300, excludedTrailingColumns: 8)
+        _ = capture.add(page.frame(at: 0))
+        _ = capture.add(page.frame(at: 100))
+        #expect(capture.height >= 300)
+        #expect(capture.add(page.frame(at: 150)) == .full)
+    }
+
+    @Test func overlapThatIsEntirelyBlankCannotBeMatched() throws {
+        // Rows 900..<1000 are blank: from 840 to 950 the overlap (950..<1000) has no content, so the shift is unknowable.
+        let a = try #require(RowSignatures(image: page.frame(at: 840), excludingTrailing: 8))
+        let b = try #require(RowSignatures(image: page.frame(at: 950), excludingTrailing: 8))
+        #expect(ScrollStitcher.offset(from: a, to: b, top: page.header, bottom: page.footer) == nil)
+    }
+}

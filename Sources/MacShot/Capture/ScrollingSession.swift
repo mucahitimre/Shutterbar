@@ -30,6 +30,8 @@ final class ScrollingSession {
     ///   - displayFrame: the display's AppKit frame.
     init(displayID: CGDirectDisplayID, rect: CGRect, displayFrame: CGRect) {
         self.displayID = displayID
+        // Whole points: a fractional edge would pull a sliver of our outline into the capture.
+        let rect = rect.integral
         self.rect = rect
         globalRect = CaptureGeometry.toGlobal(rect, displayFrame: displayFrame)
         frameWindow = RegionFrameWindow(around: globalRect)
@@ -70,6 +72,7 @@ final class ScrollingSession {
         let started = clock.now
 
         var pending: CGImage? // a settled frame taken right after scrolling
+        var expectedShift: Int? // pixels the content should have moved, known after our own scroll
         while finishRequested == nil {
             if input.escapePressed {
                 finishRequested = false
@@ -85,7 +88,8 @@ final class ScrollingSession {
             #if DEBUG
             FrameDump.write(frame)
             #endif
-            let result = stitch.add(frame)
+            let result = stitch.add(frame, expectedShift: expectedShift)
+            expectedShift = nil
             counts[Self.name(result), default: 0] += 1
             if automatic { policy.record(result) }
             switch result {
@@ -114,6 +118,7 @@ final class ScrollingSession {
             switch policy.decide(elapsed: elapsed, userActivity: input.takeActivity(), pointerInside: globalRect.contains(NSEvent.mouseLocation)) {
             case .scroll:
                 scroller.scrollDown()
+                expectedShift = Int((CGFloat(scroller.step) * capturer.pixelScale).rounded())
                 pending = try await settledFrame(capturer)
             case .pause:
                 hud.update(status: "Paused — move the pointer back into the frame", height: stitch.height, warning: true)
@@ -175,7 +180,8 @@ final class ScrollingSession {
 /// Dashed accent outline around the region; ignores the mouse so scrolling reaches the app below.
 private final class RegionFrameWindow: NSPanel {
     init(around rect: CGRect) {
-        let inset: CGFloat = -3
+        // The outline sits a few points outside the region so it can never touch captured pixels.
+        let inset: CGFloat = -6
         super.init(contentRect: rect.insetBy(dx: inset, dy: inset), styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         level = .statusBar
@@ -345,7 +351,8 @@ enum FrameDump {
 private final class AutoScroller {
     /// Marks our own events so `InputMonitor` can tell them from the user's.
     static let marker: Int64 = 0x4D53_5343 // 'MSSC'
-    private var step: Int32
+    /// Points per synthetic scroll.
+    private(set) var step: Int32
 
     init(regionHeight: CGFloat) {
         step = Int32(max(40, regionHeight * 0.25))

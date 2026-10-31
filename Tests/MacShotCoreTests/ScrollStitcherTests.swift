@@ -249,4 +249,16 @@ struct ScrollStitcherTests {
         let image = try #require(capture.makeImage())
         #expect(sameIgnoringTrailing(image, page.expected(lastScroll: 150), trailing: 8))
     }
+
+    @Test func expectedShiftResolvesRepetitiveLayouts() throws {
+        // A list whose rows repeat every 50 px: shifts 60 and 10 look the same; only the known distance tells.
+        let repeating = makeImage(width: 120, height: 2000) { x, y in
+            let row = y % 50
+            return row < 2 ? (180, 180, 180) : (row > 15 && row < 30 && x > 10 && x < 90 ? (40, 40, 40) : (250, 250, 250))
+        }
+        func frame(_ s: Int) -> CGImage { repeating.cropping(to: CGRect(x: 0, y: s, width: 120, height: 300))! }
+        let a = try #require(RowSignatures(image: frame(100))), b = try #require(RowSignatures(image: frame(160)))
+        #expect(ScrollStitcher.offset(from: a, to: b, top: 0, bottom: 0) == nil)
+        #expect(ScrollStitcher.offset(from: a, to: b, top: 0, bottom: 0, expected: 60) == 60)
+    }
 }

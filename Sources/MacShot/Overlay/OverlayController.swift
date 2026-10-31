@@ -32,12 +32,16 @@ final class OverlayController: OverlayViewDelegate {
         quickCapture: Bool,
         magnifierPixelCount: Int?,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
+        windows: [WindowSnap.Window] = [],
         hud: String? = nil,
         onPresented: @escaping () -> Void
     ) async -> OverlayResult {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
-            present(snapshots: snapshots, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount, preview: preview, hud: hud)
+            present(
+                snapshots: snapshots, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount,
+                preview: preview, windows: windows, hud: hud
+            )
             onPresented()
         }
     }
@@ -47,18 +51,24 @@ final class OverlayController: OverlayViewDelegate {
         quickCapture: Bool,
         magnifierPixelCount: Int?,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
+        windows: [WindowSnap.Window],
         hud: String?
     ) {
         let front = NSWorkspace.shared.frontmostApplication
         previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
 
         let screens = NSScreen.screens
+        let primaryHeight = screens.first?.frame.height ?? 0
+        let ownPID = ProcessInfo.processInfo.processIdentifier
         for snapshot in snapshots {
             guard let screen = screens.first(where: { $0.displayID == snapshot.displayID }) else { continue }
             let panel = OverlayPanel(screen: screen)
             let previewRect = preview?.displayID == snapshot.displayID ? preview?.rect : nil
             let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount, preview: previewRect)
             view.delegate = self
+            view.setWindowRects(WindowSnap.localRects(
+                windows, excludingPID: ownPID, displayFrame: snapshot.frame, primaryScreenHeight: primaryHeight
+            ))
             panel.contentView = view
             panel.orderFrontRegardless()
             panels.append(panel)

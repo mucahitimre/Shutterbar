@@ -133,6 +133,11 @@ final class OverlayView: NSView {
         }
     }
 
+    func setWindowRects(_ rects: [CGRect]) {
+        machine.windowRects = rects
+        refresh()
+    }
+
     func setMagnifierPixelCount(_ count: Int) {
         magnifier?.setPixelCount(count)
         refresh()
@@ -282,10 +287,14 @@ final class OverlayView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
+        // Seçim yoksa imlecin altındaki pencere (snap) seçim gibi gösterilir.
+        let isHover = machine.selection == nil && machine.hoveredWindow != nil
+        let highlighted = machine.selection ?? machine.hoveredWindow
+
         let dim = CGMutablePath()
         dim.addRect(bounds)
-        if let selection = machine.selection {
-            dim.addRect(selection)
+        if let highlighted {
+            dim.addRect(highlighted)
         }
         dimLayer.path = dim
 
@@ -296,13 +305,15 @@ final class OverlayView: NSView {
             previewLayer.isHidden = true
         }
 
-        if let selection = machine.selection, selection.width >= 1, selection.height >= 1 {
-            borderLayer.path = CGPath(rect: selection.insetBy(dx: -0.5, dy: -0.5), transform: nil)
+        if let selection = highlighted, selection.width >= 1, selection.height >= 1 {
+            borderLayer.path = CGPath(rect: selection.insetBy(dx: isHover ? 1 : -0.5, dy: isHover ? 1 : -0.5), transform: nil)
+            borderLayer.strokeColor = isHover ? NSColor.controlAccentColor.cgColor : NSColor.white.cgColor
+            borderLayer.lineWidth = isHover ? 2 : 1
             dashLayer.path = CGPath(rect: selection.insetBy(dx: 0.5, dy: 0.5), transform: nil)
             borderLayer.isHidden = false
-            dashLayer.isHidden = false
+            dashLayer.isHidden = isHover
 
-            let showHandles = !machine.quickCapture && machine.phase == .idle
+            let showHandles = !isHover && !machine.quickCapture && machine.phase == .idle
             if showHandles {
                 let handles = CGMutablePath()
                 for handle in SelectionStateMachine.Handle.allCases {

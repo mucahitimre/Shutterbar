@@ -193,4 +193,57 @@ struct SelectionStateMachineTests {
         #expect(sm.key(.screen(9)) == .captureScreen(9))
         #expect(sm.key(.screen(-1)) == .none)
     }
+
+    @Test func hoverHighlightsWindowAndClickSelectsIt() {
+        var sm = machine(quick: false)
+        let front = CGRect(x: 100, y: 100, width: 300, height: 200)
+        sm.windowRects = [front, CGRect(x: 0, y: 0, width: 900, height: 700)]
+        sm.mouseMoved(to: CGPoint(x: 150, y: 150))
+        #expect(sm.hoveredWindow == front)
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        #expect(sm.mouseUp(at: CGPoint(x: 151, y: 150)) == .none)
+        #expect(sm.selection == front)
+        #expect(sm.hoveredWindow == nil)
+        // Seçim varken vurgu yok.
+        sm.mouseMoved(to: CGPoint(x: 600, y: 600))
+        #expect(sm.hoveredWindow == nil)
+    }
+
+    @Test func clickOnWindowCapturesInQuickMode() {
+        var sm = machine(quick: true)
+        let window = CGRect(x: 100, y: 100, width: 300, height: 200)
+        sm.windowRects = [window]
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        #expect(sm.mouseUp(at: CGPoint(x: 150, y: 150)) == .capture(window))
+    }
+
+    @Test func dragOverWindowStillDraws() {
+        var sm = machine(quick: false)
+        sm.windowRects = [CGRect(x: 0, y: 0, width: 900, height: 700)]
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        sm.mouseDragged(to: CGPoint(x: 60, y: 60))
+        #expect(sm.hoveredWindow == nil)
+        _ = sm.mouseUp(at: CGPoint(x: 110, y: 110))
+        #expect(sm.selection == CGRect(x: 10, y: 10, width: 100, height: 100))
+    }
+
+    @Test func clickOutsideWindowsClearsSelection() {
+        var sm = machine(quick: false)
+        sm.windowRects = [CGRect(x: 600, y: 600, width: 100, height: 100)]
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        _ = sm.mouseUp(at: CGPoint(x: 110, y: 110))
+        _ = sm.mouseDown(at: CGPoint(x: 300, y: 300))
+        _ = sm.mouseUp(at: CGPoint(x: 300, y: 300))
+        #expect(sm.selection == nil)
+    }
+
+    @Test func deleteRestoresHover() {
+        var sm = machine(quick: false)
+        let window = CGRect(x: 0, y: 0, width: 500, height: 500)
+        sm.windowRects = [window]
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        _ = sm.mouseUp(at: CGPoint(x: 110, y: 110))
+        _ = sm.key(.delete)
+        #expect(sm.hoveredWindow == window)
+    }
 }

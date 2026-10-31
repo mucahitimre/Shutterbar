@@ -46,6 +46,8 @@ final class CaptureCoordinator {
         let clock = ContinuousClock()
         let start = clock.now
 
+        // Pencere listesi dondurmayla aynı anda alınır; overlay açılınca kendi panellerimiz de girerdi.
+        let windows = preferences.windowSnap ? WindowList.onScreen() : []
         let snapshots: [DisplaySnapshot]
         do {
             snapshots = try await snapshotter.snapshotAll()
@@ -60,6 +62,7 @@ final class CaptureCoordinator {
             quickCapture: preferences.quickCapture,
             magnifierPixelCount: preferences.magnifier ? preferences.magnifierPixelCount : nil,
             preview: preview(for: snapshots),
+            windows: windows,
             hud: hud
         ) {
             let shown = clock.now

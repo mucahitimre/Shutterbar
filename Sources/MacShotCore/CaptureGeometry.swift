@@ -43,6 +43,12 @@ public enum CaptureGeometry {
         return CGPoint(x: displayFrame.minX + point.x, y: primaryScreenHeight - appKitY)
     }
 
+    /// Quartz global rect (ana ekranın sol-üstü orijin, y aşağı) → display-local rect. Ekran dışına taşan kısım kırpılmaz.
+    public static func toDisplayLocal(quartzRect rect: CGRect, displayFrame: CGRect, primaryScreenHeight: CGFloat) -> CGRect {
+        let originY = primaryScreenHeight - displayFrame.maxY
+        return rect.offsetBy(dx: -displayFrame.minX, dy: -originY)
+    }
+
     // MARK: Ölçek ve piksel
 
     /// Donmuş görüntünün gerçek ölçeği (piksel / point).

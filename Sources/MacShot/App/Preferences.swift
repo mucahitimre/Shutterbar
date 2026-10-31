@@ -13,6 +13,7 @@ final class Preferences: ObservableObject {
         static let magnifier = "magnifier"
         static let magnifierPixelCount = "magnifierPixelCount"
         static let clipboardIncludesFileURL = "clipboardIncludesFileURL"
+        static let windowSnap = "windowSnap"
     }
 
     private let defaults: UserDefaults
@@ -35,6 +36,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(magnifierPixelCount, forKey: Key.magnifierPixelCount) }
     }
 
+    /// Overlay'de imlecin altındaki pencereyi vurgula; tıklayınca o pencereyi seç.
+    @Published var windowSnap: Bool {
+        didSet { defaults.set(windowSnap, forKey: Key.windowSnap) }
+    }
+
     /// Kayıt da açıksa panoya dosya URL'si ekle (varsayılan kapalı: yalnız görüntü).
     @Published var clipboardIncludesFileURL: Bool {
         didSet { defaults.set(clipboardIncludesFileURL, forKey: Key.clipboardIncludesFileURL) }
@@ -53,12 +59,14 @@ final class Preferences: ObservableObject {
             Key.magnifier: true,
             Key.magnifierPixelCount: 15,
             Key.clipboardIncludesFileURL: false,
+            Key.windowSnap: true,
         ])
         afterCaptureTasks = AfterCaptureTask(rawValue: defaults.integer(forKey: Key.afterCaptureTasks))
         quickCapture = defaults.bool(forKey: Key.quickCapture)
         magnifier = defaults.bool(forKey: Key.magnifier)
         magnifierPixelCount = defaults.integer(forKey: Key.magnifierPixelCount)
         clipboardIncludesFileURL = defaults.bool(forKey: Key.clipboardIncludesFileURL)
+        windowSnap = defaults.bool(forKey: Key.windowSnap)
         saveFolderBookmark = defaults.data(forKey: Key.saveFolderBookmark)
     }
 

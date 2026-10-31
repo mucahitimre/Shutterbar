@@ -33,7 +33,8 @@ struct SettingsView: View {
                      : "Seçim Enter'a kadar taşınabilir / boyutlandırılabilir. Enter: after-capture task'ları, ⌘C: yalnız pano.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Büyüteç", isOn: $preferences.magnifier)
+                Toggle("Büyüteç (boyut: overlay'de fare tekerleği)", isOn: $preferences.magnifier)
+                Toggle("Pencere algılama: üzerine gelinen pencereyi tıklayarak seç", isOn: $preferences.windowSnap)
             }
 
             Section("After capture") {

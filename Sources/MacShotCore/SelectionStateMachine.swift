@@ -59,6 +59,13 @@ public struct SelectionStateMachine: Sendable {
     public private(set) var phase: Phase = .idle
     public private(set) var cursor: CGPoint = .zero
 
+    /// Dondurma anındaki pencereler (display-local, önden arkaya). Boşsa snap kapalı.
+    public var windowRects: [CGRect] = [] {
+        didSet { updateHover() }
+    }
+    /// Seçim yokken imlecin altındaki pencere; tıklayınca seçim olur.
+    public private(set) var hoveredWindow: CGRect?
+
     private var lastPoint: CGPoint = .zero
     private var modifiers: Modifiers = []
 
@@ -80,6 +87,7 @@ public struct SelectionStateMachine: Sendable {
 
     public mutating func mouseMoved(to point: CGPoint) {
         cursor = CaptureGeometry.clamp(point, to: bounds)
+        updateHover()
     }
 
     public mutating func mouseDown(at point: CGPoint, clickCount: Int = 1, modifiers: Modifiers = []) -> Output {
@@ -141,10 +149,18 @@ public struct SelectionStateMachine: Sendable {
         switch finished {
         case .drawing:
             guard let selection, !CaptureGeometry.isClick(selection) else {
-                // Tıklama: yeni seçim yok; quick capture kapalıyken eski seçim de temizlenir.
+                // Tıklama: altında pencere varsa o seçilir; yoksa (quick capture kapalıyken) eski seçim temizlenir.
+                if let window = WindowSnap.window(at: point, in: windowRects) {
+                    self.selection = window
+                    hoveredWindow = nil
+                    preview = nil
+                    return quickCapture ? .capture(window) : .none
+                }
                 self.selection = nil
+                updateHover()
                 return .none
             }
+            hoveredWindow = nil
             return quickCapture ? .capture(selection) : .none
         case .moving, .resizing:
             if let selection, CaptureGeometry.isClick(selection) {
@@ -181,6 +197,7 @@ public struct SelectionStateMachine: Sendable {
         case .delete:
             selection = nil
             phase = .idle
+            updateHover()
             return .none
         case .space:
             return .captureAllScreens
@@ -209,6 +226,7 @@ public struct SelectionStateMachine: Sendable {
         selection = nil
         preview = nil
         phase = .idle
+        hoveredWindow = nil
     }
 
     // MARK: Tutamaçlar
@@ -259,5 +277,13 @@ public struct SelectionStateMachine: Sendable {
         let rect = CaptureGeometry.rect(from: anchor, to: cursor, square: modifiers.contains(.shift), bounds: bounds)
         selection = rect
         preview = nil
+        // Sürükleme başlayınca vurgu kalkar; tıklama sayılacak kadar küçükken kalır.
+        if !CaptureGeometry.isClick(rect) { hoveredWindow = nil }
+    }
+
+    /// Vurgu yalnız seçim yokken ve fare boştayken.
+    private mutating func updateHover() {
+        guard selection == nil, phase == .idle else { return }
+        hoveredWindow = WindowSnap.window(at: cursor, in: windowRects)
     }
 }

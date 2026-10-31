@@ -1,6 +1,6 @@
 import AppKit
 import MacShotCore
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// Runs the hotkey → freeze → overlay → crop → output flow.
 @MainActor
@@ -219,8 +219,6 @@ final class CaptureCoordinator {
     func runRegionSelfTest() {
         Task {
             try? await Task.sleep(for: .seconds(1))
-            let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            Log.capture.info("REGION SELFTEST preflight \(PermissionService.hasScreenCaptureAccess) scDisplays \(content?.displays.map(\.displayID) ?? [], privacy: .public) nsScreens \(NSScreen.screens.compactMap(\.displayID), privacy: .public)")
             do {
                 let full = try await snapshotter.snapshotAll()[0]
                 let rect = CGRect(x: 120, y: 60, width: 400, height: 240)

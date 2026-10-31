@@ -8,14 +8,15 @@ Plan ve gereksinimler: [docs/plan.md](docs/plan.md)
 
 ```bash
 brew install xcodegen
+cp Config/Local.xcconfig.example Config/Local.xcconfig   # Team ID ve bundle id öneki
 xcodegen generate
 xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD build
 open build/DD/Build/Products/Debug/MacShot.app
 ```
 
 - macOS 14.0+, Xcode 16+ (Swift 6).
-- İmza: `project.yml` içinde `DEVELOPMENT_TEAM`. Ad-hoc imzalı build'de Ekran Kaydı izni her build'de kaybolur; sabit bir Apple Development kimliği kullanın.
-- Uygulama adı ve bundle id `project.yml` içindeki `APP_NAME` / `BUNDLE_ID_PREFIX` sabitlerinden türetilir.
+- İmza: `Config/Local.xcconfig` (gitignore'da) içinde `DEVELOPMENT_TEAM` ve `BUNDLE_ID_PREFIX`; depodaki varsayılanlar `Config/Signing.xcconfig`'te (boş team, `com.example`). Ad-hoc imzalı build'de Ekran Kaydı izni her build'de kaybolur; sabit bir Apple Development kimliği kullanın. Bundle id öneki değişirse izin sıfırlanır.
+- Uygulama adı `project.yml` içindeki `APP_NAME` sabitinden, bundle id `$(BUNDLE_ID_PREFIX).$(APP_NAME:lower)` olarak türetilir.
 
 ## Test
 
@@ -85,6 +86,9 @@ Freeze: hotkey'de tüm ekranlar `SCScreenshotManager` ile paralel çekilir, over
 - Pencere / kontrol algılama (snap) yok.
 - Launch at login Debug build'de `build/` altından da çalışır, ama uygulama taşınırsa yeniden açılması gerekir; kalıcı kullanım için `/Applications` önerilir.
 
-## Açık kaynak
+## Katkı ve lisans
 
-GitHub'da açık kaynak yayınlanması planlanıyor (önce private repo). Lisans ve katkı rehberi yayın öncesi eklenecek.
+- Katkı rehberi: [CONTRIBUTING.md](CONTRIBUTING.md) · davranış kuralları: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · güvenlik bildirimi: [SECURITY.md](SECURITY.md)
+- CI (GitHub Actions): her push ve PR'da imzasız build + test ve legacy capture API kontrolü
+- ShareX (GPL-3.0) kodu kopyalanmamıştır; yalnız davranışı referans alınmıştır.
+- Lisans: [MIT](LICENSE) © 2026 Mücahit İmre

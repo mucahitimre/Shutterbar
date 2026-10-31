@@ -1,0 +1,5 @@
+// Copy to Config/Local.xcconfig (gitignored), then run `xcodegen generate`.
+// Team ID: Xcode > Settings > Accounts, or the OU field of your "Apple Development" certificate.
+DEVELOPMENT_TEAM = ABCDE12345
+// Reverse-DNS prefix you own. Changing it later resets the Screen Recording permission.
+BUNDLE_ID_PREFIX = com.yourname

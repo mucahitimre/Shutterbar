@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press ⌘⇧X
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "e.g. 15.3"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: MacShot version or commit
+  - type: textarea
+    id: displays
+    attributes:
+      label: Displays
+      description: Number of screens, Retina or not, arrangement (e.g. external screen left of the built-in one).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Output of: log show --last 10m --predicate 'subsystem BEGINSWITH \"com.\"' --style compact | grep -i macshot"
+      render: text

@@ -1,0 +1,6 @@
+// Public defaults. Do not put personal values here.
+// For local signing copy Local.xcconfig.example to Local.xcconfig (gitignored) and fill it in.
+DEVELOPMENT_TEAM =
+BUNDLE_ID_PREFIX = com.example
+
+#include? "Local.xcconfig"

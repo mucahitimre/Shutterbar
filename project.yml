@@ -6,16 +6,19 @@ options:
   createIntermediateGroups: true
   groupSortPosition: top
 
+# İmza ve bundle id öneki Config/Signing.xcconfig'ten (+ gitignore'daki Config/Local.xcconfig) gelir.
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+
 settings:
   base:
     # Tek ad sabiti: ürün adı, bundle id ve kayıt klasörü buradan türetilir.
     APP_NAME: MacShot
-    BUNDLE_ID_PREFIX: com.mucahitimre
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    DEVELOPMENT_TEAM: 4SFTG4T5YD
     CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: "Apple Development"
     MACOSX_DEPLOYMENT_TARGET: "14.0"

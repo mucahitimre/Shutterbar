@@ -30,9 +30,21 @@ Ortam: macOS 27.0 (Darwin 27.0.0), tek ekran 2048×1332 pt, `backingScaleFactor`
 - [ ] Launch at login açık/kapalı, reboot sonrası — manuel bekliyor
 - [ ] Hotkey kaydı başarısız senaryosu ve yedek kısayol — macOS 15.0/15.1 makine yok, manuel bekliyor
 
+## v2
+
+- [ ] Fare tekerleği / trackpad ile büyüteç boyutu değişiyor, yeniden açılışta korunuyor — manuel bekliyor
+- [ ] 1…0: ilgili ekranın tamamı; olmayan ekran numarasında bip — manuel bekliyor
+- [ ] Bildirimde küçük resim görünüyor — manuel bekliyor
+- [ ] "Panoya dosya URL'sini de ekle" açıkken Finder'a yapıştırınca dosya geliyor, kapalıyken gelmiyor — manuel bekliyor
+- [ ] Pencere algılama: vurgu en öndeki pencerede; tıklayınca pencere seçiliyor; sürükleme yine bölge çiziyor; Dock / menü çubuğu seçilmiyor; ayardan kapanıyor — manuel bekliyor
+- [ ] Editör: beş araçla fareyle çizim, metin girişi (Enter ile bitir, Esc ile iptal), renk/kalınlık, ⌘Z/⇧⌘Z, Bitti / Kopyala / iptal — manuel bekliyor
+- [x] Editör öz testi (debug, model üzerinden her araçtan bir işaret): pencere açılıyor, Bitti ile çıktı kaydediliyor; kaydedilen PNG ile canvas görüntüsü aynı — Claude 31.10 (fareyle etkileşim değil)
+- [ ] Editör toolbar'ının görünümü — `cacheDisplay` yerel segmented kontrolü çizmediği için görüntüyle doğrulanamadı; görünüm ağacında var (x 12–372). Manuel bekliyor
+
 ## Claude'un koştuğu otomatik kontroller
 
-- [x] `xcodebuild build` ve `test`: 62/62 test yeşil, koddan gelen uyarı yok
+- [x] `xcodebuild build` ve `test`: 86/86 test yeşil (v2), koddan gelen uyarı yok
+- [x] CI komutu yerelde imzasız ve Local.xcconfig olmadan: yeşil; GitHub Actions `main` üzerinde yeşil
 - [x] İmza: Apple Development (Team 4SFTG4T5YD); entitlement'lar: app-sandbox, assets.pictures.read-write, files.user-selected.read-write, files.bookmarks.app-scope
 - [x] Legacy capture API taraması (`CGWindowListCreateImage`, `CGDisplayCreateImage`): kullanım yok
 - [x] Gecikme (hotkey → overlay görünür), 1 ekran: ilk 160 ms, sonraki 72 ms (hedef 2 ekranda < 250 ms; 2 ekran ölçülemedi)

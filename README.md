@@ -24,7 +24,9 @@ open build/DD/Build/Products/Debug/MacShot.app
 xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD test
 ```
 
-Saf mantık (geometri, seçim durum makinesi, dosya adı, last region kararı) `MacShotCore` framework'ünde ve host uygulama olmadan test edilir.
+Debug build'de `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` editörü örnek görüntüyle açar (capture izni gerekmez).
+
+Saf mantık (geometri, seçim durum makinesi, dosya adı, last region kararı, pencere algılama, annotation) `MacShotCore` framework'ünde ve host uygulama olmadan test edilir.
 
 ## Kullanım
 
@@ -38,6 +40,7 @@ Kısayollar Ayarlar'dan değiştirilebilir. Overlay içinde:
 | Tuş / fare | İş |
 |---|---|
 | Sürükle | Seçim. Quick capture kapalıyken (varsayılan) seçim kalır; içinden sürükleyerek taşınır, 8 tutamaçla boyutlandırılır |
+| Pencere üstünde tıkla | Pencere algılama: imlecin altındaki pencere vurgulanır, tıklayınca seçim olur (ayardan kapatılabilir) |
 | Enter / seçim içine çift tık | Yakala ve seçili after-capture task'larını çalıştır |
 | ⌘C | Yakala ve **yalnız panoya** al (after-capture task'ları çalışmaz) |
 | Esc / sağ tık | İptal; dosya ve pano değişmez |
@@ -47,10 +50,26 @@ Kısayollar Ayarlar'dan değiştirilebilir. Overlay içinde:
 | Delete | Seçimi temizle |
 | Space | Tüm ekranlar (her ekran ayrı dosya) |
 | ~ / ` | İmlecin bulunduğu ekran |
+| 1 … 9, 0 | Sıradaki ekranın tamamı (sistem ekran sırası; 0 = onuncu) |
+| Fare tekerleği | Büyüteç boyutu (7…31 piksel, kalıcı) |
 
-After-capture task'ları (menü > After capture ya da Ayarlar), çalışma sırası: dosyaya kaydet → panoya kopyala (PNG + TIFF) → Finder'da göster → bildirim. Varsayılan: kaydet + pano. Bir task hata verirse diğerleri yine çalışır, hatalar tek bildirimde özetlenir. Dosyalar `~/Pictures/MacShot/yyyy-MM/Screenshot_yyyy-MM-dd_HH-mm-ss.png`; klasör Ayarlar'dan değiştirilebilir (security-scoped bookmark, erişilemezse varsayılana döner).
+After-capture task'ları (menü > After capture ya da Ayarlar), çalışma sırası: annotation editörü → dosyaya kaydet → panoya kopyala (PNG + TIFF; istenirse dosya URL'si de) → Finder'da göster → bildirim (küçük resimli; tıklayınca dosya Finder'da). Varsayılan: kaydet + pano. Bir task hata verirse diğerleri yine çalışır, hatalar tek bildirimde özetlenir. Dosyalar `~/Pictures/MacShot/yyyy-MM/Screenshot_yyyy-MM-dd_HH-mm-ss.png`; klasör Ayarlar'dan değiştirilebilir (security-scoped bookmark, erişilemezse varsayılana döner).
 
 Son bölge: her region capture'dan sonra ekran UUID'si ve rect saklanır (yeniden başlatmada korunur). Region overlay'inde soluk kesikli çizilir, Enter ile kabul edilir. Ekran bağlı değilse ya da rect artık sığmıyorsa ⌥⇧5 overlay'i "Son bölge bu ekran düzeninde geçerli değil" mesajıyla açar. Space / ~ son bölgeyi değiştirmez.
+
+### Annotation editörü
+
+"Annotation editörünü aç" task'ı seçiliyse yakalanan görüntü önce editörde açılır; diğer task'lar düzenlenmiş görüntüyle çalışır (tam ekran çoklu yakalamada editör atlanır).
+
+| Kısayol | İş |
+|---|---|
+| A / R / T / B / N | Ok / kutu / metin / bulanık (pixelate) / numara rozeti |
+| ⌘Z / ⇧⌘Z | Geri al / yinele |
+| Enter / ⌘S / Bitti | Task'ları çalıştır |
+| ⌘C / Kopyala | Yalnız panoya al |
+| Esc / pencereyi kapat | İptal (görüntü atılır) |
+
+Renk ve kalınlık toolbar'dan seçilir. Annotation'lar görüntü pikselinde saklanır, ekranda ve çıktıda aynı çizim kodundan geçer.
 
 ## İzin
 
@@ -68,22 +87,26 @@ Sources/MacShotCore/   saf mantık, host'suz test edilir
   SelectionStateMachine  overlay fare/klavye davranışı
   AfterCapture           task seti + hata izoleli runner
   LastRegion             model, UserDefaults store, geçerlilik kararı
+  WindowSnap             pencere rect'leri (Quartz → display-local), isabet testi
+  Annotation             model, geri al/yinele, CoreGraphics/CoreText renderer
   FileNamer, ImageCropper (PNGEncoder), HotkeyRegistration
 Sources/MacShot/
   App/         AppDelegate, menu bar, hotkey'ler, tercihler
-  Capture/     ScreenSnapshotService (ScreenCaptureKit), CaptureCoordinator
+  Capture/     ScreenSnapshotService (ScreenCaptureKit), WindowList, CaptureCoordinator
   Overlay/     ekran başına NSPanel, OverlayView, MagnifierView
+  Editor/      annotation editörü (model, canvas, pencere)
   Output/      CaptureOutput, Clipboard, SaveFolder, Notifier
   Settings/    SwiftUI ayarlar, LoginItem (SMAppService)
   Onboarding/  izin akışı
 ```
 
-Freeze: hotkey'de tüm ekranlar `SCScreenshotManager` ile paralel çekilir, overlay ancak sonra gösterilir; kesim bu donmuş kareden yapılır, ikinci capture yoktur. Legacy `CGWindowListCreateImage` kullanılmaz.
+Freeze: hotkey'de tüm ekranlar `SCScreenshotManager` ile paralel çekilir, overlay ancak sonra gösterilir; kesim bu donmuş kareden yapılır, ikinci capture yoktur. Legacy `CGWindowListCreateImage` kullanılmaz. Pencere algılama için `CGWindowListCopyWindowInfo` yalnız pencere sınırlarını ve z-sırasını okur (görüntü yakalamaz); Dock'un tam ekran şeffaf penceresi (katman 20) ve menü çubuğu elenir.
 
 ## Bilinen sınırlar
 
 - Çok ekranlı birleşik seçim yok; seçim başladığı ekrana clamp edilir.
-- Pencere / kontrol algılama (snap) yok.
+- Kontrol (buton vb.) algılama yok; yalnız pencere algılama var.
+- Editörde çizilmiş bir işareti seçip taşıma / silme yok; geri al ile kaldırılır.
 - Launch at login Debug build'de `build/` altından da çalışır, ama uygulama taşınırsa yeniden açılması gerekir; kalıcı kullanım için `/Applications` önerilir.
 
 ## Katkı ve lisans

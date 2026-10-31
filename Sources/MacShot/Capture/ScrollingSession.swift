@@ -54,44 +54,63 @@ final class ScrollingSession {
             Log.capture.info("Scrolling session frames: \(counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "), privacy: .public)")
         }
 
-        let automatic = Preferences.shared.autoScroll && AutoScrollPermission.isAvailable && AutoScrollPermission.isGranted
+        var automatic = Preferences.shared.autoScroll && AutoScrollPermission.isAvailable && AutoScrollPermission.isGranted
         hud.showsEnableAutoScroll = Preferences.shared.autoScroll && AutoScrollPermission.isAvailable && !automatic
         Log.capture.info("Scrolling session: \(automatic ? "automatic" : "manual", privacy: .public)")
-        let scroller = automatic ? AutoScroller(regionCenter: CGPoint(x: globalRect.midX, y: globalRect.midY), regionHeight: rect.height) : nil
-        scroller?.moveCursorIntoRegion()
-        var unchangedInARow = 0
+        let scroller = AutoScroller(regionHeight: rect.height)
+        var policy = AutoScrollPolicy()
+        let input = InputMonitor()
+        defer { input.stop() }
+        let clock = ContinuousClock()
+        let started = clock.now
 
         while finishRequested == nil {
+            if input.escapePressed {
+                finishRequested = false
+                break
+            }
             let frame = try await capturer.capture()
             let result = stitch.add(frame)
             counts[Self.name(result), default: 0] += 1
+            if automatic { policy.record(result) }
             switch result {
             case .first:
-                hud.update(status: automatic ? "Scrolling automatically…" : "Scroll down slowly inside the frame", height: stitch.height)
+                hud.update(status: automatic ? "Scrolling automatically — move the mouse or press Esc to stop"
+                                             : "Scroll down slowly inside the frame", height: stitch.height)
             case .appended:
-                unchangedInARow = 0
-                hud.update(status: automatic ? "Scrolling automatically — click Done to stop" : "Capturing — keep scrolling, then click Done",
-                           height: stitch.height)
+                if !automatic { hud.update(status: "Capturing — keep scrolling, then click Done", height: stitch.height) }
+                else { hud.update(status: "Scrolling automatically — move the mouse or press Esc to stop", height: stitch.height) }
             case .unchanged:
-                unchangedInARow += 1
-                // Nothing moved twice after scrolling: the end of the page.
-                if automatic, unchangedInARow >= 2, counts["appended", default: 0] > 0 {
-                    hud.update(status: "Reached the end of the page", height: stitch.height)
-                    finishRequested = true
-                }
+                break
             case .lost:
-                scroller?.slowDown()
-                hud.update(status: automatic ? "Adjusting scroll speed…" : "Scrolled too far at once — scroll back up a little",
-                           height: stitch.height, warning: !automatic)
+                if automatic { scroller.slowDown() }
+                else { hud.update(status: "Scrolled too far at once — scroll back up a little", height: stitch.height, warning: true) }
             case .full:
                 hud.update(status: "Maximum height reached", height: stitch.height)
                 finishRequested = true
             }
             guard finishRequested == nil else { break }
-            if let scroller {
+
+            guard automatic else {
+                try? await Task.sleep(for: Self.frameInterval)
+                continue
+            }
+            let elapsed = (clock.now - started) / .seconds(1)
+            switch policy.decide(elapsed: elapsed, userActivity: input.takeActivity(), pointerInside: globalRect.contains(NSEvent.mouseLocation)) {
+            case .scroll:
                 scroller.scrollDown()
                 try? await Task.sleep(for: Self.settleInterval)
-            } else {
+            case .pause:
+                hud.update(status: "Paused — move the pointer back into the frame", height: stitch.height, warning: true)
+                try? await Task.sleep(for: Self.frameInterval)
+            case .stop(.endOfContent):
+                hud.update(status: "Reached the end", height: stitch.height)
+                finishRequested = true
+            case .stop(let reason):
+                // Never keep control: hand over to manual scrolling; the user finishes with Done.
+                automatic = false
+                Log.capture.info("Automatic scrolling stopped: \(String(describing: reason), privacy: .public)")
+                hud.update(status: Self.stopMessage(reason), height: stitch.height)
                 try? await Task.sleep(for: Self.frameInterval)
             }
         }
@@ -102,6 +121,16 @@ final class ScrollingSession {
         }
         Log.capture.info("Scrolling capture: \(image.width)×\(image.height) px")
         return .done(image)
+    }
+
+    private static func stopMessage(_ reason: AutoScrollPolicy.StopReason) -> String {
+        switch reason {
+        case .userTookOver: "You took over — scroll yourself, then click Done"
+        case .timeLimit: "Stopped after the time limit — click Done or keep scrolling yourself"
+        case .frameLimit: "Stopped after the frame limit — click Done or keep scrolling yourself"
+        case .lostTrack: "Lost track of the page — scroll yourself or click Done"
+        case .endOfContent: "Reached the end"
+        }
     }
 
     private static func name(_ result: ScrollingCapture.AddResult) -> String {
@@ -266,32 +295,59 @@ enum AutoScrollPermission {
     }
 }
 
-/// Posts synthetic scroll-down events at the region's center. The step starts at about a third of the region
-/// so consecutive frames always overlap, and halves when a frame cannot be matched.
+/// Posts synthetic scroll-down events where the pointer is (it never moves the pointer). The step starts at about
+/// a third of the region so consecutive frames always overlap, and halves when a frame cannot be matched.
 @MainActor
 private final class AutoScroller {
-    private let center: CGPoint // Quartz global (top-left origin)
+    /// Marks our own events so `InputMonitor` can tell them from the user's.
+    static let marker: Int64 = 0x4D53_5343 // 'MSSC'
     private var step: Int32
 
-    init(regionCenter appKitPoint: CGPoint, regionHeight: CGFloat) {
-        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        center = CGPoint(x: appKitPoint.x, y: primaryHeight - appKitPoint.y)
+    init(regionHeight: CGFloat) {
         step = Int32(max(40, regionHeight * 0.35))
-    }
-
-    /// Scroll events go to the window under the cursor.
-    func moveCursorIntoRegion() {
-        CGWarpMouseCursorPosition(center)
-        CGAssociateMouseAndMouseCursorPosition(1)
     }
 
     func scrollDown() {
         guard let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -step, wheel2: 0, wheel3: 0) else { return }
-        event.location = center
+        event.setIntegerValueField(.eventSourceUserData, value: Self.marker)
         event.post(tap: .cghidEventTap)
     }
 
     func slowDown() {
         step = max(20, step / 2)
+    }
+}
+
+/// Watches the user's mouse and keyboard during a scrolling session (global monitors work with the Accessibility
+/// permission; local ones cover our own windows). Our synthetic scroll events are ignored by their marker.
+@MainActor
+private final class InputMonitor {
+    private(set) var escapePressed = false
+    private var activity = false
+    private var monitors: [Any] = []
+
+    init() {
+        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown, .rightMouseDown, .leftMouseDragged, .scrollWheel, .keyDown]
+        let handle: (NSEvent) -> Void = { [weak self] event in
+            if event.type == .scrollWheel,
+               event.cgEvent?.getIntegerValueField(.eventSourceUserData) == AutoScroller.marker { return }
+            MainActor.assumeIsolated {
+                if event.type == .keyDown, event.keyCode == 53 { self?.escapePressed = true }
+                self?.activity = true
+            }
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: handle) { monitors.append(global) }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { handle($0); return $0 }) { monitors.append(local) }
+    }
+
+    /// Whether there was user input since the last call.
+    func takeActivity() -> Bool {
+        defer { activity = false }
+        return activity
+    }
+
+    func stop() {
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors.removeAll()
     }
 }

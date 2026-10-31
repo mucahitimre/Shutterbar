@@ -4,6 +4,7 @@ Ortam: macOS 27.0 (Darwin 27.0.0), tek Retina ekran (dahili). Build: Debug, Appl
 İşaretler: `[x]` koşuldu ve geçti · `[ ]` manuel bekliyor · not satırında kim/nasıl.
 
 - [x] Tek Retina ekran: region capture çalışıyor, dosya kaydediliyor — kullanıcı 31.10.2026 doğruladı (610×228 ve 652×621 px PNG)
+- [x] F4 build genel kullanım — kullanıcı 31.10.2026 "çalışıyor" dedi (madde madde değil; aşağıdaki işaretsizler ayrıca teyit bekliyor)
 - [ ] Kesimin piksel doğruluğu (bilinen boyutlu UI öğesiyle karşılaştırma) — manuel bekliyor; unit test 1x/2x/1.5x kapsıyor
 - [ ] Retina dahili + 1x harici ekran: iki ekranda capture, keskinlik, doğru boyut — harici ekran yok, manuel bekliyor
 - [ ] Harici ekran ana ekranın soluna/üstüne (negatif koordinat) — manuel bekliyor; unit test kapsıyor

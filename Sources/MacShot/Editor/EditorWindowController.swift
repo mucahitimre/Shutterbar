@@ -1,6 +1,6 @@
 import AppKit
+import Combine
 import MacShotCore
-import SwiftUI
 
 /// Opens the captured image for annotation; returns the result asynchronously.
 @MainActor
@@ -14,37 +14,42 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
     }
 
     private let model = EditorModel()
+    private var observation: AnyCancellable?
+    private weak var toolGroup: NSToolbarItemGroup?
+    private weak var colorItem: NSMenuToolbarItem?
+    private weak var widthItem: NSMenuToolbarItem?
     private let canvas: EditorCanvasView
     private let window: NSWindow
     private var continuation: CheckedContinuation<Result, Never>?
 
     init(image: CGImage) {
         canvas = EditorCanvasView(image: image, model: model)
-        window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .resizable, .miniaturizable],
+        // Created at its final size: a zero-sized window makes the unified toolbar's title layout conflict.
+        window = NSWindow(contentRect: CGRect(origin: .zero, size: Self.initialSize(for: image, margin: 20)),
+                          styleMask: [.titled, .closable, .resizable, .miniaturizable],
                           backing: .buffered, defer: false)
         super.init()
-
-        let toolbar = NSHostingView(rootView: EditorToolbar(
-            model: model,
-            onCopy: { [weak self] in self?.finish(copy: true) },
-            onDone: { [weak self] in self?.finish(copy: false) }
-        ))
-        toolbar.translatesAutoresizingMaskIntoConstraints = false
         canvas.translatesAutoresizingMaskIntoConstraints = false
         canvas.delegate = self
+        canvas.wantsLayer = true
+        canvas.shadow = {
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
+            shadow.shadowBlurRadius = 6
+            shadow.shadowOffset = CGSize(width: 0, height: -1)
+            return shadow
+        }()
 
-        let content = NSView()
-        content.addSubview(toolbar)
+        // Like Preview: the image sits on the under-page background with some breathing room.
+        let content = UnderPageView()
         content.addSubview(canvas)
         let aspect = CGFloat(image.height) / CGFloat(max(image.width, 1))
+        let margin: CGFloat = 20
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: content.topAnchor),
-            toolbar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            toolbar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            canvas.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
             canvas.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            canvas.leadingAnchor.constraint(greaterThanOrEqualTo: content.leadingAnchor),
-            canvas.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
+            canvas.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+            canvas.leadingAnchor.constraint(greaterThanOrEqualTo: content.leadingAnchor, constant: margin),
+            canvas.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: margin),
             canvas.heightAnchor.constraint(equalTo: canvas.widthAnchor, multiplier: aspect),
             // Don't scale above 100%: small captures should not get blurry.
             canvas.widthAnchor.constraint(lessThanOrEqualToConstant: CGFloat(image.width) / (NSScreen.main?.backingScaleFactor ?? 2)),
@@ -52,34 +57,41 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
         // As the window grows, the canvas grows while keeping its aspect ratio. The priority is below the window's
         // size-keeping priority (500): the canvas does not grow the window, it fits the window.
         let fill = NSLayoutConstraint.Priority(rawValue: NSLayoutConstraint.Priority.windowSizeStayPut.rawValue - 10)
-        let fillWidth = canvas.widthAnchor.constraint(equalTo: content.widthAnchor)
+        let fillWidth = canvas.widthAnchor.constraint(equalTo: content.widthAnchor, constant: -margin * 2)
         fillWidth.priority = fill
-        let fillHeight = canvas.bottomAnchor.constraint(equalTo: content.bottomAnchor)
+        let fillHeight = canvas.heightAnchor.constraint(equalTo: content.heightAnchor, constant: -margin * 2)
         fillHeight.priority = fill
         NSLayoutConstraint.activate([fillWidth, fillHeight])
 
         window.contentView = content
         window.title = "\(AppInfo.name) — Annotate"
+        window.subtitle = "\(image.width) × \(image.height)"
         window.delegate = self
         window.isReleasedWhenClosed = false
-        let toolbarSize = toolbar.fittingSize
-        window.setContentSize(Self.initialSize(for: image, toolbar: toolbarSize))
-        window.contentMinSize = CGSize(width: toolbarSize.width, height: toolbarSize.height + 160)
+        window.toolbarStyle = .unified
+        let toolbar = NSToolbar(identifier: "EditorToolbar")
+        toolbar.displayMode = .iconOnly
+        toolbar.delegate = self
+        window.toolbar = toolbar
+        window.contentMinSize = CGSize(width: 640, height: 320)
         window.center()
+
+        observation = model.objectWillChange.sink { [weak self] _ in
+            DispatchQueue.main.async { self?.syncToolbar() }
+        }
     }
 
     /// Shows the image at 100% (at screen scale); scales it down if it doesn't fit in 85% of the screen.
-    private static func initialSize(for image: CGImage, toolbar: CGSize) -> CGSize {
-        let toolbarHeight = toolbar.height
+    private static func initialSize(for image: CGImage, margin: CGFloat) -> CGSize {
         let screen = NSScreen.main
         let scale = screen?.backingScaleFactor ?? 2
         let visible = screen?.visibleFrame.size ?? CGSize(width: 1440, height: 900)
         var size = CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
-        let limit = CGSize(width: visible.width * 0.85, height: visible.height * 0.85 - toolbarHeight)
+        let limit = CGSize(width: visible.width * 0.85 - margin * 2, height: visible.height * 0.8 - margin * 2)
         let fit = min(1, limit.width / size.width, limit.height / size.height)
         size = CGSize(width: size.width * fit, height: size.height * fit)
         // For an image narrower than the toolbar, the canvas is centered and the height follows the aspect ratio.
-        return CGSize(width: max(size.width, toolbar.width), height: size.height + toolbarHeight)
+        return CGSize(width: max(size.width + margin * 2, 640), height: max(size.height + margin * 2, 320))
     }
 
     func run() async -> Result {
@@ -146,65 +158,186 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
     }
 }
 
-private struct EditorToolbar: View {
-    @ObservedObject var model: EditorModel
-    let onCopy: () -> Void
-    let onDone: () -> Void
+// MARK: - Native toolbar
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Picker("Tool", selection: $model.tool) {
-                ForEach(EditorModel.Tool.allCases) { tool in
-                    Label(tool.title, systemImage: tool.symbol)
-                        .labelStyle(.iconOnly)
-                        .help("\(tool.title) (\(String(tool.key).uppercased()))")
-                        .tag(tool)
-                }
+private extension NSToolbarItem.Identifier {
+    static let tools = Self("tools")
+    static let color = Self("color")
+    static let width = Self("width")
+    static let undo = Self("undo")
+    static let redo = Self("redo")
+    static let share = Self("share")
+    static let copy = Self("copy")
+    static let done = Self("done")
+}
+
+extension EditorWindowController: NSToolbarDelegate, NSToolbarItemValidation, NSSharingServicePickerToolbarItemDelegate {
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.tools, .space, .color, .width, .space, .undo, .redo, .flexibleSpace, .share, .copy, .done]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        switch id {
+        case .tools:
+            let tools = EditorModel.Tool.allCases
+            let group = NSToolbarItemGroup(
+                itemIdentifier: id,
+                images: tools.map { Self.symbol($0.symbol, $0.title) },
+                selectionMode: .selectOne,
+                labels: tools.map(\.title),
+                target: self,
+                action: #selector(toolChanged(_:))
+            )
+            group.label = "Tools"
+            for (item, tool) in zip(group.subitems, tools) {
+                item.toolTip = "\(tool.title) (\(String(tool.key).uppercased()))"
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-
-            HStack(spacing: 4) {
-                ForEach(EditorModel.palette, id: \.self) { color in
-                    Button {
-                        model.color = color
-                    } label: {
-                        Circle()
-                            .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha))
-                            .overlay(Circle().stroke(Color.primary.opacity(model.color == color ? 0.9 : 0.25),
-                                                     lineWidth: model.color == color ? 2 : 1))
-                            .frame(width: 16, height: 16)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Picker("Width", selection: $model.width) {
-                ForEach(EditorModel.Width.allCases) { width in
-                    Text(width.title).tag(width)
-                }
-            }
-            .labelsHidden()
-            .fixedSize()
-
-            Spacer()
-
-            Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
-                .disabled(!model.document.canUndo)
-                .help("Undo (⌘Z)")
-            Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
-                .disabled(!model.document.canRedo)
-                .help("Redo (⇧⌘Z)")
-            Button("Clear") { model.clear() }
-                .disabled(!model.document.canUndo)
-            Button("Copy", action: onCopy)
-                .help("Copy to clipboard only (⌘C)")
-            Button("Done", action: onDone)
-                .keyboardShortcut(.defaultAction)
-                .help("Run after-capture tasks (Enter / ⌘S)")
+            group.selectedIndex = tools.firstIndex(of: model.tool) ?? 0
+            toolGroup = group
+            return group
+        case .color:
+            let item = NSMenuToolbarItem(itemIdentifier: id)
+            item.label = "Color"
+            item.toolTip = "Color"
+            item.showsIndicator = true
+            colorItem = item
+            syncColor()
+            return item
+        case .width:
+            let item = NSMenuToolbarItem(itemIdentifier: id)
+            item.label = "Line Width"
+            item.toolTip = "Line width"
+            item.image = Self.symbol("lineweight", "Line width")
+            item.showsIndicator = true
+            widthItem = item
+            syncWidth()
+            return item
+        case .undo:
+            return button(id, symbol: "arrow.uturn.backward", label: "Undo", help: "Undo (⌘Z)", action: #selector(undo))
+        case .redo:
+            return button(id, symbol: "arrow.uturn.forward", label: "Redo", help: "Redo (⇧⌘Z)", action: #selector(redo))
+        case .share:
+            let item = NSSharingServicePickerToolbarItem(itemIdentifier: id)
+            item.label = "Share"
+            item.toolTip = "Share"
+            item.delegate = self
+            return item
+        case .copy:
+            return button(id, symbol: "doc.on.doc", label: "Copy", help: "Copy to clipboard only (⌘C)", action: #selector(copyClicked))
+        case .done:
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.label = "Done"
+            let button = NSButton(title: "Done", target: self, action: #selector(doneClicked))
+            button.bezelStyle = .push
+            button.keyEquivalent = "\r"
+            button.toolTip = "Run after-capture tasks (Enter / ⌘S)"
+            item.view = button
+            return item
+        default:
+            return nil
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+    }
+
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        switch item.itemIdentifier {
+        case .undo: model.document.canUndo
+        case .redo: model.document.canRedo
+        default: true
+        }
+    }
+
+    func items(for pickerToolbarItem: NSSharingServicePickerToolbarItem) -> [Any] {
+        canvas.finishEditing()
+        guard let rendered = AnnotationRenderer.render(model.document.items, on: canvas.image) else { return [] }
+        return [NSImage(cgImage: rendered, size: .zero)]
+    }
+
+    // MARK: Actions
+
+    @objc private func toolChanged(_ sender: NSToolbarItemGroup) {
+        let tools = EditorModel.Tool.allCases
+        guard tools.indices.contains(sender.selectedIndex) else { return }
+        model.tool = tools[sender.selectedIndex]
+        window.invalidateCursorRects(for: canvas)
+        window.makeFirstResponder(canvas)
+    }
+
+    @objc private func undo() { model.undo() }
+    @objc private func redo() { model.redo() }
+    @objc private func copyClicked() { finish(copy: true) }
+    @objc private func doneClicked() { finish(copy: false) }
+
+    // MARK: State
+
+    /// Keeps the toolbar in step with keyboard shortcuts and menu choices.
+    private func syncToolbar() {
+        toolGroup?.selectedIndex = EditorModel.Tool.allCases.firstIndex(of: model.tool) ?? 0
+        syncColor()
+        syncWidth()
+        window.toolbar?.validateVisibleItems()
+    }
+
+    private func syncColor() {
+        guard let item = colorItem else { return }
+        item.image = Self.swatch(model.color, diameter: 16)
+        let menu = NSMenu()
+        for (color, name) in zip(EditorModel.palette, ["Red", "Yellow", "Green", "Blue", "Black", "White"]) {
+            let entry = ActionMenuItem(name, checked: color == model.color) { [weak self] in self?.model.color = color }
+            entry.image = Self.swatch(color, diameter: 12)
+            menu.addItem(entry)
+        }
+        item.menu = menu
+    }
+
+    private func syncWidth() {
+        guard let item = widthItem else { return }
+        let menu = NSMenu()
+        for width in EditorModel.Width.allCases {
+            menu.addItem(ActionMenuItem(width.title, checked: width == model.width) { [weak self] in self?.model.width = width })
+        }
+        item.menu = menu
+    }
+
+    private func button(_ id: NSToolbarItem.Identifier, symbol: String, label: String, help: String, action: Selector) -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: id)
+        item.label = label
+        item.toolTip = help
+        item.image = Self.symbol(symbol, label)
+        item.isBordered = true
+        item.target = self
+        item.action = action
+        return item
+    }
+
+    private static func symbol(_ name: String, _ description: String) -> NSImage {
+        NSImage(systemSymbolName: name, accessibilityDescription: description) ?? NSImage()
+    }
+
+    private static func swatch(_ color: Annotation.Color, diameter: CGFloat) -> NSImage {
+        let image = NSImage(size: CGSize(width: diameter, height: diameter), flipped: false) { rect in
+            let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5))
+            NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha).setFill()
+            circle.fill()
+            NSColor.separatorColor.setStroke()
+            circle.lineWidth = 1
+            circle.stroke()
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+}
+
+/// Preview-style gray backdrop behind the image.
+private final class UnderPageView: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
     }
 }

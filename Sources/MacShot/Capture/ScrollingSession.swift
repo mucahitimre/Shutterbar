@@ -46,6 +46,9 @@ final class ScrollingSession {
 
         frameWindow.orderFrontRegardless()
         hud.orderFrontRegardless()
+        // The first frame after our windows appear can still contain them (exclusion applies a moment later).
+        try? await Task.sleep(for: .milliseconds(150))
+        _ = try await capturer.capture()
         defer {
             frameWindow.orderOut(nil)
             hud.orderOut(nil)

@@ -237,4 +237,16 @@ struct ScrollStitcherTests {
         #expect(ScrollStitcher.isSameFrame(page.frame(at: 100, jitter: 1), page.frame(at: 100, jitter: 2)))
         #expect(!ScrollStitcher.isSameFrame(page.frame(at: 100), page.frame(at: 103)))
     }
+
+    @Test func recoversFromABadFirstFrame() throws {
+        // The first frame can differ from the rest (e.g. our own outline captured before exclusion applied).
+        var capture = ScrollingCapture(excludedTrailingColumns: 8)
+        let bad = makeImage(width: Page.width, height: page.viewport) { x, y in (UInt8(x % 256), UInt8(y % 256), 77) }
+        #expect(capture.add(bad) == .first)
+        #expect(capture.add(page.frame(at: 0)) == .lost)
+        #expect(capture.add(page.frame(at: 70)) == .appended(70))
+        #expect(capture.add(page.frame(at: 150)) == .appended(80))
+        let image = try #require(capture.makeImage())
+        #expect(sameIgnoringTrailing(image, page.expected(lastScroll: 150), trailing: 8))
+    }
 }

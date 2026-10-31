@@ -171,9 +171,10 @@ public enum ScrollStitcher {
         top: Int,
         bottom: Int,
         minimumOverlap: Double = 0.2,
-        minimumMatchRatio: Double = 0.9,
+        minimumMatchRatio: Double = 0.75,
         minimumInformativeRows: Int = 8,
-        minimumStripMatch: Double = 0.75
+        minimumStripMatch: Double = 0.75,
+        minimumMargin: Double = 0.2
     ) -> Int? {
         let n = min(a.count, b.count)
         let start = top, end = n - bottom
@@ -183,7 +184,11 @@ public enum ScrollStitcher {
         if (start..<end).allSatisfy({ a.stripMatch($0, b, $0) >= minimumStripMatch }) { return 0 }
 
         let minOverlap = max(1, Int(Double(span) * minimumOverlap))
-        // Smallest shift first: it has the largest overlap, so it is the most trustworthy match.
+        guard span - minOverlap >= 1 else { return nil }
+        // Score every shift; accept the best one only if it is good enough and clearly ahead of any non-adjacent
+        // rival. Hover effects or a caret lower the true shift's score a little; repetitive or blank content gives
+        // several similar scores and is rejected instead of guessed.
+        var scores: [(dy: Int, ratio: Double)] = []
         for dy in 1...(span - minOverlap) {
             var compared = 0, matched = 0
             for i in 0..<(span - dy) {
@@ -192,11 +197,13 @@ public enum ScrollStitcher {
                 compared += 1
                 if a.stripMatch(rowA, b, rowB) >= minimumStripMatch { matched += 1 }
             }
-            if compared >= minimumInformativeRows, Double(matched) / Double(compared) >= minimumMatchRatio {
-                return dy
+            if compared >= minimumInformativeRows {
+                scores.append((dy, Double(matched) / Double(compared)))
             }
         }
-        return nil
+        guard let best = scores.max(by: { $0.ratio < $1.ratio }), best.ratio >= minimumMatchRatio else { return nil }
+        let rival = scores.filter { abs($0.dy - best.dy) > 1 }.map(\.ratio).max() ?? 0
+        return best.ratio - rival >= minimumMargin ? best.dy : nil
     }
 }
 
@@ -266,6 +273,16 @@ public struct ScrollingCapture: Sendable {
         let signatures = RowSignatures(buffer: buffer, columns: matchColumns(band))
         let bands = self.bands ?? ScrollStitcher.staticBands(previousSignatures, signatures)
         guard let dy = ScrollStitcher.offset(from: previousSignatures, to: signatures, top: bands.top, bottom: bands.bottom) else {
+            if self.bands == nil {
+                // Nothing stitched yet: the starting frame may be bad (e.g. captured mid-change). Start over from
+                // this frame instead of comparing every later frame with it. After stitching began this would
+                // leave a gap, so then the frame is only skipped.
+                firstFrame = frame
+                lastFrame = frame
+                lastBuffer = buffer
+                pieces = [Piece(image: frame, rows: 0..<frame.height)]
+                contentHeight = frame.height
+            }
             return .lost
         }
         guard dy > 0 else { return .unchanged }

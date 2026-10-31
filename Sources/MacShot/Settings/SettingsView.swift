@@ -10,15 +10,15 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Kısayollar") {
+            Section("Shortcuts") {
                 ForEach(HotkeyAction.allCases, id: \.self) { action in
                     KeyboardShortcuts.Recorder(action.title + ":", name: action.name)
                     if hotkeys.failures.contains(action) {
                         HStack {
-                            Label("Bu kısayol sistemde kaydedilemedi.", systemImage: "exclamationmark.triangle.fill")
+                            Label("This shortcut could not be registered with the system.", systemImage: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
                             Spacer()
-                            Button("Yedeğe geç (\(action.fallback.description))") {
+                            Button("Use fallback (\(action.fallback.description))") {
                                 hotkeys.useFallback(for: action)
                             }
                         }
@@ -26,14 +26,15 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Seçim") {
-                Toggle("Fareyi bırakınca hemen yakala (quick capture)", isOn: $preferences.quickCapture)
+            Section("Selection") {
+                Toggle("Quick capture (capture as soon as the mouse is released)", isOn: $preferences.quickCapture)
                 Text(preferences.quickCapture
-                     ? "Seçim bittiği anda after-capture task'ları çalışır."
-                     : "Seçim Enter'a kadar taşınabilir / boyutlandırılabilir. Enter: after-capture task'ları, ⌘C: yalnız pano.")
+                     ? "After-capture tasks run as soon as the selection is finished."
+                     : "The selection can be moved / resized until Enter. Enter: after-capture tasks, ⌘C: clipboard only.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Büyüteç", isOn: $preferences.magnifier)
+                Toggle("Magnifier (size: mouse wheel in the overlay)", isOn: $preferences.magnifier)
+                Toggle("Window detection: click a highlighted window to select it", isOn: $preferences.windowSnap)
             }
 
             Section("After capture") {
@@ -43,13 +44,15 @@ struct SettingsView: View {
                         set: { _ in preferences.toggle(task) }
                     ))
                 }
+                Toggle("Also put the file URL on the clipboard (when saving)", isOn: $preferences.clipboardIncludesFileURL)
+                    .disabled(!preferences.afterCaptureTasks.contains(.saveToFile) || !preferences.afterCaptureTasks.contains(.copyToClipboard))
                 if preferences.afterCaptureTasks.isEmpty {
-                    Label("Hiç task seçili değil; yakalanan görüntü hiçbir yere gitmez.", systemImage: "exclamationmark.triangle.fill")
+                    Label("No task selected; captured images are not sent anywhere.", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                 }
                 HStack {
                     VStack(alignment: .leading) {
-                        Text("Kayıt klasörü")
+                        Text("Save folder")
                         Text(SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark).path)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -57,29 +60,29 @@ struct SettingsView: View {
                             .truncationMode(.middle)
                     }
                     Spacer()
-                    Button("Değiştir…") {
+                    Button("Change…") {
                         let current = SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark)
                         if let bookmark = SaveFolder.choose(current: current) {
                             preferences.saveFolderBookmark = bookmark
                         }
                     }
                     if preferences.saveFolderBookmark != nil {
-                        Button("Varsayılana dön") { preferences.saveFolderBookmark = nil }
+                        Button("Reset to default") { preferences.saveFolderBookmark = nil }
                     }
                 }
             }
 
-            Section("Genel") {
-                Toggle("Oturum açılışında başlat", isOn: Binding(
+            Section("General") {
+                Toggle("Launch at login", isOn: Binding(
                     get: { loginItem.isEnabled },
                     set: { loginItem.setEnabled($0) }
                 ))
                 if loginItem.status == .requiresApproval {
                     HStack {
-                        Label("Sistem Ayarları > Giriş Öğeleri'nde onay bekliyor.", systemImage: "exclamationmark.triangle.fill")
+                        Label("Waiting for approval in System Settings > Login Items.", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                         Spacer()
-                        Button("Aç") { loginItem.openSystemSettings() }
+                        Button("Open") { loginItem.openSystemSettings() }
                     }
                 }
                 if let error = loginItem.lastError {
@@ -87,11 +90,11 @@ struct SettingsView: View {
                 }
             }
 
-            Section("İzin") {
+            Section("Permission") {
                 HStack {
                     PermissionStatusLabel()
                     Spacer()
-                    Button("Onboarding'i aç", action: openOnboarding)
+                    Button("Open onboarding", action: openOnboarding)
                 }
             }
         }
@@ -107,10 +110,10 @@ struct SettingsView: View {
 private struct PermissionStatusLabel: View {
     var body: some View {
         if PermissionService.hasScreenCaptureAccess {
-            Label("Ekran kaydı izni var", systemImage: "checkmark.circle.fill")
+            Label("Screen Recording permission granted", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
         } else {
-            Label("Ekran kaydı izni yok", systemImage: "xmark.circle.fill")
+            Label("Screen Recording permission missing", systemImage: "xmark.circle.fill")
                 .foregroundStyle(.red)
         }
     }

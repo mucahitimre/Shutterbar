@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Son başarılı region capture. Rect display-local, sol-üst orijinli, point.
+/// The last successful region capture. Rect is display-local, top-left origin, points.
 public struct LastRegion: Codable, Equatable, Sendable {
     public var displayUUID: String
     public var rect: CGRect
@@ -15,7 +15,7 @@ public struct LastRegion: Codable, Equatable, Sendable {
         self.date = date
     }
 
-    /// Kararı verirken bilinmesi gereken bağlı ekran bilgisi.
+    /// Connected display info needed to make the decision.
     public struct Display: Equatable, Sendable {
         public var uuid: String
         public var pointSize: CGSize
@@ -27,13 +27,13 @@ public struct LastRegion: Codable, Equatable, Sendable {
     }
 
     public enum Resolution: Equatable, Sendable {
-        /// Ekran bağlı ve rect sınır içinde: doğrudan kesilebilir.
+        /// Display is connected and the rect is in bounds: can be cropped directly.
         case valid(Display)
-        /// Ekran bağlı değil ya da rect artık sığmıyor: overlay + HUD.
+        /// Display is not connected or the rect no longer fits: overlay + HUD.
         case invalid
     }
 
-    /// R3.4: UUID eşleşmeli, rect güncel ekran sınırına sığmalı.
+    /// R3.4: the UUID must match and the rect must fit the current display bounds.
     public func resolve(in displays: [Display]) -> Resolution {
         guard let display = displays.first(where: { $0.uuid == displayUUID }),
               CaptureGeometry.fits(rect, in: display.pointSize),
@@ -43,12 +43,12 @@ public struct LastRegion: Codable, Equatable, Sendable {
     }
 }
 
-/// UserDefaults içinde JSON. Yalnız region capture yazar; tam ekran capture'lar dokunmaz (R3.1).
+/// JSON in UserDefaults. Only region captures write it; full-screen captures leave it alone (R3.1).
 public struct LastRegionStore: Sendable {
     public static let key = "lastRegion"
     private let suiteName: String?
 
-    /// - Parameter suiteName: testler için ayrı UserDefaults; `nil` = standard.
+    /// - Parameter suiteName: separate UserDefaults for tests; `nil` = standard.
     public init(suiteName: String? = nil) {
         self.suiteName = suiteName
     }
@@ -64,7 +64,7 @@ public struct LastRegionStore: Sendable {
 
     public enum CaptureKind: Sendable {
         case region(LastRegion)
-        /// Space / ~: last region'ı değiştirmez.
+        /// Space / ~: does not change the last region.
         case fullScreen
     }
 

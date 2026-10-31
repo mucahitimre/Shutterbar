@@ -1,6 +1,6 @@
 import Foundation
 
-/// `<kök>/yyyy-MM/Screenshot_yyyy-MM-dd_HH-mm-ss.png`; çakışmada `_2`, `_3`, … eki.
+/// `<root>/yyyy-MM/Screenshot_yyyy-MM-dd_HH-mm-ss.png`; on collision, a `_2`, `_3`, … suffix.
 public struct FileNamer: Sendable {
     public var timeZone: TimeZone
     public var prefix: String

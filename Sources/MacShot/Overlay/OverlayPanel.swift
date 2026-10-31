@@ -1,6 +1,6 @@
 import AppKit
 
-/// Bir ekranı tamamen kaplayan, klavye alabilen kenarlıksız panel.
+/// A borderless panel that covers a whole screen and can receive keyboard input.
 final class OverlayPanel: NSPanel {
     init(screen: NSScreen) {
         super.init(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)

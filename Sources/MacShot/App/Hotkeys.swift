@@ -4,7 +4,7 @@ import KeyboardShortcuts
 import MacShotCore
 
 extension KeyboardShortcuts.Name {
-    // Name değişmez bir değer tipi; KeyboardShortcuts Sendable işaretlemiyor.
+    // Name is an immutable value type; KeyboardShortcuts does not mark it Sendable.
     nonisolated(unsafe) static let captureRegion = Self("captureRegion", default: .init(.x, modifiers: [.command, .shift]))
     nonisolated(unsafe) static let captureLastRegion = Self("captureLastRegion", default: .init(.five, modifiers: [.option, .shift]))
 }
@@ -20,7 +20,7 @@ enum HotkeyAction: CaseIterable, Hashable {
         }
     }
 
-    /// Kayıt başarısız olursa önerilen, her macOS sürümünde çalışan kısayol.
+    /// Shortcut suggested if registration fails; works on every macOS version.
     var fallback: KeyboardShortcuts.Shortcut {
         switch self {
         case .region: .init(.four, modifiers: [.control, .shift])
@@ -38,7 +38,7 @@ enum HotkeyAction: CaseIterable, Hashable {
 
 @MainActor
 final class HotkeyManager: ObservableObject {
-    /// Sistemde kaydı başarısız olan kısayollar.
+    /// Shortcuts that failed to register with the system.
     @Published private(set) var failures: Set<HotkeyAction> = []
 
     private let onTrigger: (HotkeyAction) -> Void
@@ -54,7 +54,7 @@ final class HotkeyManager: ObservableObject {
                 self?.onTrigger(action)
             }
         }
-        // KeyboardShortcuts bu bildirimi public yapmıyor; adı kaynak koddan.
+        // KeyboardShortcuts does not make this notification public; the name comes from its source code.
         observer = NotificationCenter.default.addObserver(
             forName: Notification.Name("KeyboardShortcuts_shortcutByNameDidChange"),
             object: nil,
@@ -71,7 +71,7 @@ final class HotkeyManager: ObservableObject {
             guard let shortcut = KeyboardShortcuts.getShortcut(for: action.name) else { continue }
             let status = HotkeyProbe.register(shortcut)
             if !HotkeyRegistration.isUsable(status: status) {
-                Log.hotkey.error("Kısayol kaydedilemedi: \(action.title, privacy: .public) \(shortcut.description, privacy: .public) status=\(status)")
+                Log.hotkey.error("Could not register shortcut: \(action.title, privacy: .public) \(shortcut.description, privacy: .public) status=\(status)")
                 failed.insert(action)
             }
         }
@@ -87,7 +87,7 @@ final class HotkeyManager: ObservableObject {
 enum HotkeyProbe {
     private static let signature: OSType = 0x4D53_5052 // 'MSPR'
 
-    /// Kombinasyonu geçici olarak kaydedip geri alır; Carbon durum kodunu döndürür.
+    /// Temporarily registers and unregisters the combination; returns the Carbon status code.
     static func register(_ shortcut: KeyboardShortcuts.Shortcut) -> Int32 {
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(

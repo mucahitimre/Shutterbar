@@ -1,37 +1,56 @@
-# Manuel test checklist'i
+# Manual test checklist
 
-Ortam: macOS 27.0 (Darwin 27.0.0), tek Retina ekran (dahili). Build: Debug, Apple Development imzalı, sandbox açık.
-İşaretler: `[x]` koşuldu ve geçti · `[ ]` manuel bekliyor · not satırında kim/nasıl.
+Environment: macOS 27.0 (Darwin 27.0.0), single display 2048×1332 pt, `backingScaleFactor` 1.0 (1x; measured on 2026-10-31 — an earlier "Retina" note was wrong). Build: Debug, signed with Apple Development, sandbox on.
+Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ran it and how.
 
-- [x] Tek Retina ekran: region capture çalışıyor, dosya kaydediliyor — kullanıcı 31.10.2026 doğruladı (610×228 ve 652×621 px PNG)
-- [x] F4 build genel kullanım — kullanıcı 31.10.2026 "çalışıyor" dedi (madde madde değil; aşağıdaki işaretsizler ayrıca teyit bekliyor)
-- [ ] Kesimin piksel doğruluğu (bilinen boyutlu UI öğesiyle karşılaştırma) — manuel bekliyor; unit test 1x/2x/1.5x kapsıyor
-- [ ] Retina dahili + 1x harici ekran: iki ekranda capture, keskinlik, doğru boyut — harici ekran yok, manuel bekliyor
-- [ ] Harici ekran ana ekranın soluna/üstüne (negatif koordinat) — manuel bekliyor; unit test kapsıyor
-- [ ] İki ekran arasında sürükleme → başlangıç ekranına clamp — manuel bekliyor
-- [ ] Farklı bir Space'te capture — manuel bekliyor
-- [ ] Full-screen uygulama (Safari, Keynote sunumu) üzerinde overlay ve capture — manuel bekliyor
-- [ ] Açık menü ve tooltip/hover dondurulmuş karede yakalanıyor — manuel bekliyor
-- [ ] Overlay, menu bar menüsü, ayarlar penceresi çıktıda görünmüyor — manuel bekliyor
-- [ ] Esc ile iptal: dosya ve pano değişmiyor — manuel bekliyor
-- [ ] Quick capture kapalı (varsayılan): taşıma, boyutlandırma, Enter, çift tık — manuel bekliyor
-- [ ] ⌘C: yalnız pano, dosya oluşmuyor; son bölge güncelleniyor — manuel bekliyor
-- [ ] Quick capture açık: bırakınca anında capture — manuel bekliyor
-- [ ] Space ve ~ kısayolları — manuel bekliyor
-- [ ] Büyüteç: 15×15 px, 8x, ızgara, merkez piksel kırmızı; ekran kenarında yön değiştiriyor; ayardan kapanıyor — manuel bekliyor
-- [ ] After capture: menü checkbox'ları ve ayarlar aynı durumu gösteriyor; Finder'da göster; bildirim ve bildirime tıklayınca Finder — manuel bekliyor
-- [ ] Hiç task seçili değil uyarısı (oturumda bir kez) — manuel bekliyor
-- [ ] ⌥⇧5: overlay açılmadan aynı bölge — manuel bekliyor
-- [ ] ⌥⇧5: harici ekran çıkarılmışken overlay + HUD fallback — harici ekran yok, manuel bekliyor
-- [ ] Uygulama yeniden başlatıldıktan sonra last region korunuyor — manuel bekliyor
-- [ ] İzin kaldırıldığında boş görüntü kaydedilmiyor, onboarding açılıyor — manuel bekliyor
-- [ ] Klasör Pictures dışına taşındı, uygulama yeniden başladı, kayıt hâlâ çalışıyor (bookmark) — manuel bekliyor
-- [ ] Launch at login açık/kapalı, reboot sonrası — manuel bekliyor
-- [ ] Hotkey kaydı başarısız senaryosu ve yedek kısayol — macOS 15.0/15.1 makine yok, manuel bekliyor
+- [x] Single display (1x): region capture works, file is saved — verified by the owner on 2026-10-31 (610×228 and 652×621 px PNG)
+- [x] v0.1 build general use — owner said "works" on 2026-10-31 (overall, not item by item; the unchecked items below still need confirmation)
+- [ ] Pixel accuracy of the crop (compare with a UI element of known size) — pending; unit tests cover 1x/2x/1.5x
+- [ ] Capture and sharpness on a Retina (2x) display — no 2x display on this machine, pending
+- [ ] Retina built-in + 1x external display: capture on both, sharpness, correct size — no external display, pending
+- [ ] External display left of / above the main display (negative coordinates) — pending; covered by unit tests
+- [ ] Dragging across two displays → clamped to the starting display — pending
+- [ ] Capture on a different Space — pending
+- [ ] Overlay and capture over a full-screen app (Safari, Keynote presentation) — pending
+- [ ] An open menu and a tooltip/hover state are captured in the frozen frame — pending
+- [ ] Overlay, menu bar menu and settings window do not appear in the output — pending
+- [ ] Esc cancels: no file, clipboard unchanged — pending
+- [ ] Quick capture off (default): move, resize, Enter, double-click — pending
+- [ ] ⌘C: clipboard only, no file; last region is updated — pending
+- [ ] Quick capture on: capture immediately on mouse up — pending
+- [ ] Space and ~ shortcuts — pending
+- [ ] Magnifier: 15×15 px, 8x, grid, red center pixel; flips at screen edges; can be turned off — pending
+- [ ] After capture: menu checkboxes and settings show the same state; Show in Finder; notification and clicking it reveals the file — pending
+- [ ] "No after-capture task selected" warning (once per session) — pending
+- [ ] ⌥⇧5: same region without the overlay — pending
+- [ ] ⌥⇧5: with the external display disconnected, overlay + HUD fallback — no external display, pending
+- [ ] Last region survives an app relaunch — pending
+- [ ] With permission revoked, no blank image is saved and onboarding opens — pending
+- [ ] Save folder moved outside Pictures, app relaunched, saving still works (bookmark) — pending
+- [ ] Launch at login on/off, after reboot — pending
+- [ ] Hotkey registration failure and fallback shortcut — no macOS 15.0/15.1 machine, pending
 
-## Claude'un koştuğu otomatik kontroller
+## v0.2
 
-- [x] `xcodebuild build` ve `test`: 62/62 test yeşil, koddan gelen uyarı yok
-- [x] İmza: Apple Development (Team 4SFTG4T5YD); entitlement'lar: app-sandbox, assets.pictures.read-write, files.user-selected.read-write, files.bookmarks.app-scope
-- [x] Legacy capture API taraması (`CGWindowListCreateImage`, `CGDisplayCreateImage`): kullanım yok
-- [x] Gecikme (hotkey → overlay görünür), 1 ekran: ilk 160 ms, sonraki 72 ms (hedef 2 ekranda < 250 ms; 2 ekran ölçülemedi)
+- [ ] Mouse wheel / trackpad changes the magnifier size, kept after relaunch — pending
+- [ ] 1…0: the whole screen with that number; beep for a missing screen — pending
+- [ ] Notification shows a thumbnail — pending
+- [ ] With "Also put the file URL on the clipboard" on, pasting into Finder gives the file; with it off, it does not — pending
+- [ ] Window detection: highlight is on the frontmost window; click selects the window; dragging still draws a region; Dock / menu bar are not selected; can be turned off — pending
+- [ ] Editor: drawing with all five tools by mouse, text input (Enter commits, Esc cancels), color/width, ⌘Z/⇧⌘Z, Done / Copy / cancel — pending
+- [x] Editor self-test (debug, one annotation of each tool added through the model): window opens, Done saves the output; the saved PNG matches the canvas — Claude, 2026-10-31 (not mouse interaction)
+- [ ] Editor toolbar appearance — could not be verified from an image because `cacheDisplay` does not draw the native segmented control; it is present in the view hierarchy (x 12–372). Pending
+
+## Release package (per release)
+
+- [ ] DMG opens, drag-to-Applications works, app launches without a Gatekeeper warning (`spctl -a -vv` says "Notarized Developer ID")
+- [ ] Screen Recording permission flow on a clean user account
+- [ ] Version in About / Finder Get Info matches the tag
+
+## Automated checks run by Claude
+
+- [x] `xcodebuild build` and `test`: 86/86 tests green (v0.2), no warnings from our code
+- [x] CI command run locally unsigned and without Local.xcconfig: green; GitHub Actions green on `main`
+- [x] Signing: Apple Development (Team 4SFTG4T5YD); entitlements: app-sandbox, assets.pictures.read-write, files.user-selected.read-write, files.bookmarks.app-scope
+- [x] Legacy capture API scan (`CGWindowListCreateImage`, `CGDisplayCreateImage`): no usage
+- [x] Latency (hotkey → overlay visible), 1 display: first 160 ms, then 72 ms (target < 250 ms on 2 displays; 2 displays not measured)

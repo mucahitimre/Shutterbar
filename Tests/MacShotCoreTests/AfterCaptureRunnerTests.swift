@@ -13,6 +13,8 @@ private final class MockActions: AfterCaptureActions {
     var failSave = false
     var failCopy = false
     var notified: AfterCaptureReport?
+    var copiedWithURLs: [URL] = []
+    var thumbnail: CGImage?
 
     func save(_ images: [CGImage]) throws -> [URL] {
         calls.append("save")
@@ -20,8 +22,9 @@ private final class MockActions: AfterCaptureActions {
         return images.indices.map { URL(fileURLWithPath: "/tmp/shot\($0).png") }
     }
 
-    func copy(_ images: [CGImage]) throws {
+    func copy(_ images: [CGImage], savedURLs: [URL]) throws {
         calls.append("copy")
+        copiedWithURLs = savedURLs
         if failCopy { throw Boom() }
     }
 
@@ -29,9 +32,10 @@ private final class MockActions: AfterCaptureActions {
         calls.append("reveal")
     }
 
-    func notify(_ report: AfterCaptureReport) {
+    func notify(_ report: AfterCaptureReport, thumbnail: CGImage?) {
         calls.append("notify")
         notified = report
+        self.thumbnail = thumbnail
     }
 }
 
@@ -85,7 +89,7 @@ struct AfterCaptureRunnerTests {
         mock.failCopy = true
         _ = AfterCaptureRunner.run([.copyToClipboard], images: [image], actions: mock)
         #expect(mock.calls.filter { $0 == "notify" }.count == 1)
-        #expect(mock.notified?.summary == "Panoya kopyala başarısız: boom")
+        #expect(mock.notified?.summary == "Copy to clipboard failed: boom")
     }
 
     @Test func noNotificationWhenSuccessfulAndOff() {
@@ -97,6 +101,30 @@ struct AfterCaptureRunnerTests {
     @Test func summaryListsSavedAndCopied() {
         let mock = MockActions()
         let report = AfterCaptureRunner.run([.saveToFile, .copyToClipboard, .showNotification], images: [image, image], actions: mock)
-        #expect(report?.summary == "2 dosya kaydedildi\nPanoya kopyalandı")
+        #expect(report?.summary == "Saved 2 files\nCopied to clipboard")
+    }
+
+    @Test func copyReceivesSavedURLs() {
+        let mock = MockActions()
+        _ = AfterCaptureRunner.run(.defaults, images: [image], actions: mock)
+        #expect(mock.copiedWithURLs == [URL(fileURLWithPath: "/tmp/shot0.png")])
+    }
+
+    @Test func notificationGetsThumbnail() {
+        let mock = MockActions()
+        _ = AfterCaptureRunner.run(.showNotification, images: [image], actions: mock)
+        #expect(mock.thumbnail === image)
+    }
+
+    @Test func runnerIgnoresAnnotate() {
+        let mock = MockActions()
+        #expect(AfterCaptureRunner.run(.annotate, images: [image], actions: mock) == nil)
+        let report = AfterCaptureRunner.run([.annotate, .copyToClipboard], images: [image], actions: mock)
+        #expect(mock.calls == ["copy"])
+        #expect(report?.tasks == .copyToClipboard)
+    }
+
+    @Test func annotateIsFirstInOrder() {
+        #expect(AfterCaptureTask.ordered.first == .annotate)
     }
 }

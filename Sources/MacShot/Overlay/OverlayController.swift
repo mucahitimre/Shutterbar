@@ -1,19 +1,20 @@
 import AppKit
 import MacShotCore
 
-/// Bölgenin nereye gideceği: Enter → after-capture task'ları, ⌘C → yalnız pano.
+/// Where the region goes: Enter → after-capture tasks, ⌘C → clipboard only.
 enum CaptureIntent {
     case afterCapture
     case clipboardOnly
 }
 
 enum OverlayResult {
-    case region(DisplaySnapshot, CGRect, CaptureIntent)
+    /// `isWindow`: an unmodified window picked by clicking; not stored as the last region.
+    case region(DisplaySnapshot, CGRect, CaptureIntent, isWindow: Bool)
     case screens([DisplaySnapshot])
     case cancelled
 }
 
-/// Her ekran için bir overlay paneli açar ve kullanıcının seçimini bekler.
+/// Opens an overlay panel for each screen and waits for the user's selection.
 @MainActor
 final class OverlayController: OverlayViewDelegate {
     private var panels: [OverlayPanel] = []
@@ -23,18 +24,25 @@ final class OverlayController: OverlayViewDelegate {
 
     var isPresented: Bool { continuation != nil }
 
-    /// - Parameter preview: son bölgenin hangi ekranda (displayID) hangi rect olduğu.
+    /// Magnifier size changed with the mouse wheel; the caller listens to persist it.
+    var onMagnifierPixelCountChange: ((Int) -> Void)?
+
+    /// - Parameter preview: which display (displayID) and rect the last region is on.
     func run(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
-        magnifier: Bool,
+        magnifierPixelCount: Int?,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
+        windows: [WindowSnap.Window] = [],
         hud: String? = nil,
         onPresented: @escaping () -> Void
     ) async -> OverlayResult {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
-            present(snapshots: snapshots, quickCapture: quickCapture, magnifier: magnifier, preview: preview, hud: hud)
+            present(
+                snapshots: snapshots, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount,
+                preview: preview, windows: windows, hud: hud
+            )
             onPresented()
         }
     }
@@ -42,20 +50,26 @@ final class OverlayController: OverlayViewDelegate {
     private func present(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
-        magnifier: Bool,
+        magnifierPixelCount: Int?,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
+        windows: [WindowSnap.Window],
         hud: String?
     ) {
         let front = NSWorkspace.shared.frontmostApplication
         previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
 
         let screens = NSScreen.screens
+        let primaryHeight = screens.first?.frame.height ?? 0
+        let ownPID = ProcessInfo.processInfo.processIdentifier
         for snapshot in snapshots {
             guard let screen = screens.first(where: { $0.displayID == snapshot.displayID }) else { continue }
             let panel = OverlayPanel(screen: screen)
             let previewRect = preview?.displayID == snapshot.displayID ? preview?.rect : nil
-            let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, magnifier: magnifier, preview: previewRect)
+            let view = OverlayView(snapshot: snapshot, quickCapture: quickCapture, magnifierPixelCount: magnifierPixelCount, preview: previewRect)
             view.delegate = self
+            view.setWindowRects(WindowSnap.localRects(
+                windows, excludingPID: ownPID, displayFrame: snapshot.frame, primaryScreenHeight: primaryHeight
+            ))
             panel.contentView = view
             panel.orderFrontRegardless()
             panels.append(panel)
@@ -101,9 +115,9 @@ final class OverlayController: OverlayViewDelegate {
         case .none:
             break
         case .capture(let rect):
-            finish(.region(view.snapshot, rect, .afterCapture))
+            finish(.region(view.snapshot, rect, .afterCapture, isWindow: view.machine.selectionIsWindow))
         case .copy(let rect):
-            finish(.region(view.snapshot, rect, .clipboardOnly))
+            finish(.region(view.snapshot, rect, .clipboardOnly, isWindow: view.machine.selectionIsWindow))
         case .cancel:
             finish(.cancelled)
         case .captureAllScreens:
@@ -111,6 +125,15 @@ final class OverlayController: OverlayViewDelegate {
         case .captureActiveScreen:
             let mouse = NSEvent.mouseLocation
             let snapshot = views.first { $0.snapshot.frame.contains(mouse) }?.snapshot ?? view.snapshot
+            finish(.screens([snapshot]))
+        case .captureScreen(let index):
+            let screens = NSScreen.screens
+            guard index < screens.count,
+                  let snapshot = views.first(where: { $0.snapshot.displayID == screens[index].displayID })?.snapshot
+            else {
+                NSSound.beep()
+                return
+            }
             finish(.screens([snapshot]))
         case .warpCursor(let point):
             let primaryHeight = NSScreen.screens.first?.frame.height ?? view.snapshot.frame.height
@@ -124,8 +147,15 @@ final class OverlayController: OverlayViewDelegate {
         }
     }
 
+    func overlayView(_ view: OverlayView, didChangeMagnifierPixelCount count: Int) {
+        for view in views {
+            view.setMagnifierPixelCount(count)
+        }
+        onMagnifierPixelCountChange?(count)
+    }
+
     func overlayViewMouseEntered(_ view: OverlayView) {
-        // Sürükleme sürerken anahtar pencereyi değiştirme; seçim başladığı ekranda kalır.
+        // Don't change the key window during a drag; the selection stays on the screen where it started.
         guard NSEvent.pressedMouseButtons == 0 else { return }
         makeKey(view)
     }

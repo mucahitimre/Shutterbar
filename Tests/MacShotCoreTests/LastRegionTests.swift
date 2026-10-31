@@ -54,7 +54,7 @@ struct LastRegionTests {
     }
 
     @Test func outOfBoundsFallsBack() {
-        // Çözünürlük küçüldü: rect artık sığmıyor.
+        // Resolution shrank: the rect no longer fits.
         let displays = [LastRegion.Display(uuid: "AAAA-1", pointSize: CGSize(width: 350, height: 600))]
         #expect(region.resolve(in: displays) == .invalid)
     }

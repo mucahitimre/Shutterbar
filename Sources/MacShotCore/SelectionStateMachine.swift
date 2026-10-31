@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Tek bir ekrandaki overlay seçiminin saf durum makinesi. Tüm koordinatlar display-local point.
+/// Pure state machine for the overlay selection on a single screen. All coordinates are display-local points.
 public struct SelectionStateMachine: Sendable {
     public enum Handle: CaseIterable, Sendable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
@@ -16,44 +16,62 @@ public struct SelectionStateMachine: Sendable {
 
     public enum Key: Equatable, Sendable {
         case escape, enter, delete, space, activeScreen
-        /// ⌘C: seçimi yalnız panoya al.
+        /// ⌘C: copy the selection to the clipboard only.
         case copy
+        /// 1…9, 0: the whole monitor at that position (0 = tenth). Zero-based index.
+        case screen(Int)
         case arrow(dx: Int, dy: Int)
     }
 
     public struct Modifiers: OptionSet, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
-        /// Shift: çizerken kare, okla 10 px.
+        /// Shift: square while drawing, 10 px with arrow keys.
         public static let shift = Modifiers(rawValue: 1 << 0)
-        /// ⌥: çizerken seçimi taşı (ShareX'teki Ctrl).
+        /// ⌥: move the selection while drawing (Ctrl in ShareX).
         public static let move = Modifiers(rawValue: 1 << 1)
     }
 
     public enum Output: Equatable, Sendable {
         case none
         case capture(CGRect)
-        /// ⌘C ile alınan bölge; after-capture task'ları yerine yalnız pano.
+        /// Region taken with ⌘C; clipboard only instead of the after-capture tasks.
         case copy(CGRect)
         case cancel
         case captureAllScreens
         case captureActiveScreen
-        /// Gerçek imleci bu display-local noktaya taşı.
+        /// Zero-based index in `NSScreen.screens` order.
+        case captureScreen(Int)
+        /// Move the real cursor to this display-local point.
         case warpCursor(CGPoint)
     }
 
     public static let handleHitRadius: CGFloat = 6
 
     public let bounds: CGSize
-    /// Piksel / point; ok tuşu adımı piksel cinsindendir.
+    /// Pixels / point; the arrow key step is in pixels.
     public let pixelScale: CGFloat
     public var quickCapture: Bool
 
     public private(set) var selection: CGRect?
-    /// Son bölgenin soluk ön çizimi; Enter ile kabul edilir.
+    /// Faint preview of the last region; accepted with Enter.
     public private(set) var preview: CGRect?
     public private(set) var phase: Phase = .idle
     public private(set) var cursor: CGPoint = .zero
+
+    /// Windows at freeze time (display-local, front to back). Empty means snapping is off.
+    public var windowRects: [CGRect] = [] {
+        didSet { updateHover() }
+    }
+    /// The window under the cursor while there is no selection; becomes the selection on click.
+    public private(set) var hoveredWindow: CGRect?
+
+    /// The selection is an unmodified window picked by clicking (not a drawn region). Such captures do not
+    /// update the last region; moving, resizing or redrawing turns it into a region.
+    public var selectionIsWindow: Bool {
+        selection != nil && selection == pickedWindow
+    }
+    private var pickedWindow: CGRect?
 
     private var lastPoint: CGPoint = .zero
     private var modifiers: Modifiers = []
@@ -63,7 +81,7 @@ public struct SelectionStateMachine: Sendable {
         self.pixelScale = pixelScale > 0 ? pixelScale : 1
         self.quickCapture = quickCapture
         if let preview, CaptureGeometry.fits(preview, in: bounds) {
-            // Quick capture kapalıyken ön çizim doğrudan düzenlenebilir seçim olarak gelir.
+            // With quick capture off, the preview comes in directly as an editable selection.
             if quickCapture {
                 self.preview = preview
             } else {
@@ -72,10 +90,11 @@ public struct SelectionStateMachine: Sendable {
         }
     }
 
-    // MARK: Fare
+    // MARK: Mouse
 
     public mutating func mouseMoved(to point: CGPoint) {
         cursor = CaptureGeometry.clamp(point, to: bounds)
+        updateHover()
     }
 
     public mutating func mouseDown(at point: CGPoint, clickCount: Int = 1, modifiers: Modifiers = []) -> Output {
@@ -137,10 +156,19 @@ public struct SelectionStateMachine: Sendable {
         switch finished {
         case .drawing:
             guard let selection, !CaptureGeometry.isClick(selection) else {
-                // Tıklama: yeni seçim yok; quick capture kapalıyken eski seçim de temizlenir.
+                // Click: if there is a window under it, that window is selected; otherwise (with quick capture off) the old selection is cleared.
+                if let window = WindowSnap.window(at: point, in: windowRects) {
+                    self.selection = window
+                    pickedWindow = window
+                    hoveredWindow = nil
+                    preview = nil
+                    return quickCapture ? .capture(window) : .none
+                }
                 self.selection = nil
+                updateHover()
                 return .none
             }
+            hoveredWindow = nil
             return quickCapture ? .capture(selection) : .none
         case .moving, .resizing:
             if let selection, CaptureGeometry.isClick(selection) {
@@ -156,7 +184,7 @@ public struct SelectionStateMachine: Sendable {
         .cancel
     }
 
-    /// Shift/⌥ çizim sırasında değişirse rect'i güncel imleçle yeniden hesapla.
+    /// If Shift/⌥ changes while drawing, recompute the rect with the current cursor.
     public mutating func modifiersChanged(_ modifiers: Modifiers) {
         self.modifiers = modifiers
         if case .drawing(let anchor) = phase {
@@ -164,7 +192,7 @@ public struct SelectionStateMachine: Sendable {
         }
     }
 
-    // MARK: Klavye
+    // MARK: Keyboard
 
     public mutating func key(_ key: Key, modifiers: Modifiers = []) -> Output {
         switch key {
@@ -177,11 +205,14 @@ public struct SelectionStateMachine: Sendable {
         case .delete:
             selection = nil
             phase = .idle
+            updateHover()
             return .none
         case .space:
             return .captureAllScreens
         case .activeScreen:
             return .captureActiveScreen
+        case .screen(let index):
+            return index >= 0 ? .captureScreen(index) : .none
         case .arrow(let dx, let dy):
             let step = (modifiers.contains(.shift) ? 10 : 1) / pixelScale
             let delta = CGVector(dx: CGFloat(dx) * step, dy: CGFloat(dy) * step)
@@ -198,14 +229,16 @@ public struct SelectionStateMachine: Sendable {
         }
     }
 
-    /// Diğer ekranda seçim başladığında bu ekranın seçimini sıfırlar.
+    /// Resets this screen's selection when a selection starts on another screen.
     public mutating func reset() {
         selection = nil
+        pickedWindow = nil
         preview = nil
         phase = .idle
+        hoveredWindow = nil
     }
 
-    // MARK: Tutamaçlar
+    // MARK: Handles
 
     public static func handlePoint(_ handle: Handle, of rect: CGRect) -> CGPoint {
         switch handle {
@@ -243,7 +276,7 @@ public struct SelectionStateMachine: Sendable {
         return CGRect(x: min(x1, x2), y: min(y1, y2), width: abs(x2 - x1), height: abs(y2 - y1))
     }
 
-    /// Enter / ⌘C'nin kabul edeceği rect: sürükleme bitmiş olmalı; seçim yoksa son bölge ön çizimi.
+    /// The rect Enter / ⌘C accepts: the drag must be finished; without a selection, the last region preview.
     private var acceptedRect: CGRect? {
         guard phase == .idle else { return nil }
         return selection ?? preview
@@ -253,5 +286,13 @@ public struct SelectionStateMachine: Sendable {
         let rect = CaptureGeometry.rect(from: anchor, to: cursor, square: modifiers.contains(.shift), bounds: bounds)
         selection = rect
         preview = nil
+        // The highlight goes away once a drag starts; it stays while the drag is small enough to count as a click.
+        if !CaptureGeometry.isClick(rect) { hoveredWindow = nil }
+    }
+
+    /// Highlight only when there is no selection and the mouse is idle.
+    private mutating func updateHover() {
+        guard selection == nil, phase == .idle else { return }
+        hoveredWindow = WindowSnap.window(at: cursor, in: windowRects)
     }
 }

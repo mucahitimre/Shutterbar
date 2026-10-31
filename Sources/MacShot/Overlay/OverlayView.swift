@@ -7,10 +7,11 @@ protocol OverlayViewDelegate: AnyObject {
     func overlayView(_ view: OverlayView, didProduce output: SelectionStateMachine.Output)
     func overlayViewDidBeginSelection(_ view: OverlayView)
     func overlayViewMouseEntered(_ view: OverlayView)
+    func overlayView(_ view: OverlayView, didChangeMagnifierPixelCount count: Int)
 }
 
-/// Donmuş kareyi gösterir, seçim dışını karartır, seçim çerçevesini ve etiketleri çizer.
-/// Görünüm flipped: koordinatları doğrudan display-local point.
+/// Shows the frozen frame, dims outside the selection, draws the selection border and labels.
+/// The view is flipped: its coordinates are display-local points directly.
 final class OverlayView: NSView {
     weak var delegate: OverlayViewDelegate?
     let snapshot: DisplaySnapshot
@@ -26,8 +27,9 @@ final class OverlayView: NSView {
     private let cursorLabel = OverlayView.makeLabel()
     private let hudLabel = OverlayView.makeLabel(fontSize: 14)
     private let magnifier: MagnifierView?
+    private var scrollAccumulator: CGFloat = 0
 
-    init(snapshot: DisplaySnapshot, quickCapture: Bool, magnifier showsMagnifier: Bool, preview: CGRect?) {
+    init(snapshot: DisplaySnapshot, quickCapture: Bool, magnifierPixelCount: Int?, preview: CGRect?) {
         self.snapshot = snapshot
         self.machine = SelectionStateMachine(
             bounds: snapshot.frame.size,
@@ -35,7 +37,7 @@ final class OverlayView: NSView {
             quickCapture: quickCapture,
             preview: preview
         )
-        magnifier = showsMagnifier ? MagnifierView(image: snapshot.image) : nil
+        magnifier = magnifierPixelCount.map { MagnifierView(image: snapshot.image, pixelCount: $0) }
         super.init(frame: CGRect(origin: .zero, size: snapshot.frame.size))
         wantsLayer = true
 
@@ -109,14 +111,14 @@ final class OverlayView: NSView {
         NSCursor.crosshair.set()
     }
 
-    // MARK: Dışarıdan
+    // MARK: External
 
     func resetSelection() {
         machine.reset()
         refresh()
     }
 
-    /// Ekranın üst ortasında kısa süreli bilgi metni (R3.4).
+    /// Short-lived info text at the top center of the screen (R3.4).
     func showHUD(_ text: String, duration: TimeInterval = 2.5) {
         hudLabel.stringValue = text
         hudLabel.sizeToFit()
@@ -131,12 +133,22 @@ final class OverlayView: NSView {
         }
     }
 
+    func setWindowRects(_ rects: [CGRect]) {
+        machine.windowRects = rects
+        refresh()
+    }
+
+    func setMagnifierPixelCount(_ count: Int) {
+        magnifier?.setPixelCount(count)
+        refresh()
+    }
+
     func updateCursor(fromGlobal location: CGPoint) {
         machine.mouseMoved(to: CaptureGeometry.toDisplayLocal(location, displayFrame: snapshot.frame))
         refresh()
     }
 
-    // MARK: Fare
+    // MARK: Mouse
 
     override func mouseEntered(with event: NSEvent) {
         delegate?.overlayViewMouseEntered(self)
@@ -168,6 +180,23 @@ final class OverlayView: NSView {
         emit(output)
     }
 
+    /// Mouse wheel: magnifier size (up enlarges). Kept in sync across screens.
+    override func scrollWheel(with event: NSEvent) {
+        guard let magnifier, event.scrollingDeltaY != 0 else { return }
+        // A trackpad produces many events per gesture; count one step once the delta accumulates.
+        if event.hasPreciseScrollingDeltas {
+            scrollAccumulator += event.scrollingDeltaY
+            guard abs(scrollAccumulator) >= 12 else { return }
+        } else {
+            scrollAccumulator = event.scrollingDeltaY
+        }
+        let step = scrollAccumulator > 0 ? 2 : -2
+        scrollAccumulator = 0
+        let count = MagnifierView.normalized(magnifier.pixelCount + step)
+        guard count != magnifier.pixelCount else { return }
+        delegate?.overlayView(self, didChangeMagnifierPixelCount: count)
+    }
+
     override func rightMouseDown(with event: NSEvent) {
         emit(machine.rightMouseDown())
     }
@@ -177,9 +206,9 @@ final class OverlayView: NSView {
         refresh()
     }
 
-    // MARK: Klavye
+    // MARK: Keyboard
 
-    /// ⌘ kombinasyonları keyDown'dan önce buraya gelir.
+    /// ⌘ combinations arrive here before keyDown.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard Self.isCopy(event) else { return super.performKeyEquivalent(with: event) }
         emit(machine.key(.copy))
@@ -209,8 +238,13 @@ final class OverlayView: NSView {
         case kVK_Return, kVK_ANSI_KeypadEnter: return .enter
         case kVK_Delete, kVK_ForwardDelete: return .delete
         case kVK_Space: return .space
-        // ~ / ` : ANSI'de Grave, ISO klavyelerde (TR dahil) sol üst tuş Section olarak gelebilir.
+        // ~ / ` : Grave on ANSI; on ISO keyboards (including Turkish) the top-left key may arrive as Section.
         case kVK_ANSI_Grave, kVK_ISO_Section: return .activeScreen
+        case kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+             kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0:
+            let flags = event.modifierFlags.intersection([.command, .control, .option])
+            guard flags.isEmpty else { return nil }
+            return .screen(screenIndex(forDigitKey: Int(event.keyCode)))
         case kVK_LeftArrow: return .arrow(dx: -1, dy: 0)
         case kVK_RightArrow: return .arrow(dx: 1, dy: 0)
         case kVK_UpArrow: return .arrow(dx: 0, dy: -1)
@@ -223,7 +257,14 @@ final class OverlayView: NSView {
         }
     }
 
-    // MARK: Yardımcılar
+    // MARK: Helpers
+
+    /// 1 → 0, …, 9 → 8, 0 → 9 (keyCodes are not sequential).
+    private static func screenIndex(forDigitKey keyCode: Int) -> Int {
+        let order = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+                     kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0]
+        return order.firstIndex(of: keyCode) ?? -1
+    }
 
     private func emit(_ output: SelectionStateMachine.Output) {
         guard output != .none else { return }
@@ -246,10 +287,14 @@ final class OverlayView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
+        // Without a selection, the window under the cursor (snap) is shown like a selection.
+        let isHover = machine.selection == nil && machine.hoveredWindow != nil
+        let highlighted = machine.selection ?? machine.hoveredWindow
+
         let dim = CGMutablePath()
         dim.addRect(bounds)
-        if let selection = machine.selection {
-            dim.addRect(selection)
+        if let highlighted {
+            dim.addRect(highlighted)
         }
         dimLayer.path = dim
 
@@ -260,13 +305,15 @@ final class OverlayView: NSView {
             previewLayer.isHidden = true
         }
 
-        if let selection = machine.selection, selection.width >= 1, selection.height >= 1 {
-            borderLayer.path = CGPath(rect: selection.insetBy(dx: -0.5, dy: -0.5), transform: nil)
+        if let selection = highlighted, selection.width >= 1, selection.height >= 1 {
+            borderLayer.path = CGPath(rect: selection.insetBy(dx: isHover ? 1 : -0.5, dy: isHover ? 1 : -0.5), transform: nil)
+            borderLayer.strokeColor = isHover ? NSColor.controlAccentColor.cgColor : NSColor.white.cgColor
+            borderLayer.lineWidth = isHover ? 2 : 1
             dashLayer.path = CGPath(rect: selection.insetBy(dx: 0.5, dy: 0.5), transform: nil)
             borderLayer.isHidden = false
-            dashLayer.isHidden = false
+            dashLayer.isHidden = isHover
 
-            let showHandles = !machine.quickCapture && machine.phase == .idle
+            let showHandles = !isHover && !machine.quickCapture && machine.phase == .idle
             if showHandles {
                 let handles = CGMutablePath()
                 for handle in SelectionStateMachine.Handle.allCases {
@@ -305,9 +352,9 @@ final class OverlayView: NSView {
         cursorLabel.stringValue = "\(Int(pixel.x)), \(Int(pixel.y))"
         cursorLabel.sizeToFit()
 
-        // İmlecin sağ-altına büyüteç + altında koordinat; sığmazsa sola / yukarı çevir.
+        // Magnifier at the cursor's bottom-right with coordinates below it; flip left / up if it doesn't fit.
         let gap: CGFloat = 16
-        let magnifierSize = magnifier == nil ? .zero : CGSize(width: MagnifierView.side, height: MagnifierView.side + 4)
+        let magnifierSize = magnifier.map { CGSize(width: $0.side, height: $0.side + 4) } ?? .zero
         let block = CGSize(
             width: max(magnifierSize.width, cursorLabel.frame.width),
             height: magnifierSize.height + cursorLabel.frame.height
@@ -336,7 +383,7 @@ final class OverlayView: NSView {
     }
 }
 
-/// Şekil katmanlarını taşır; flipped olduğu için katman koordinatları display-local ile aynı.
+/// Hosts the shape layers; since it is flipped, layer coordinates match display-local.
 private final class ShapeHostView: NSView {
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -359,7 +406,7 @@ private final class PaddedLabel: NSTextField {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        // Metni dolgu içinde ortala.
+        // Center the text within the padding.
         let text = attributedStringValue
         let size = text.size()
         text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2))

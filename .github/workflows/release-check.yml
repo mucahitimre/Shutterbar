@@ -1,0 +1,38 @@
+name: Release check
+
+# Signing and notarization run locally (scripts/release.sh) because they need the Developer ID
+# certificate. This job guards every version tag: the tag must match project.yml and CHANGELOG.md,
+# and the Release configuration must build and pass the tests.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  check:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches version and changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          project=$(sed -nE 's/^ *MARKETING_VERSION: *"?([^"]+)"?.*/\1/p' project.yml | head -1)
+          [ "$version" = "$project" ] || { echo "Tag $GITHUB_REF_NAME does not match MARKETING_VERSION $project" >&2; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md || { echo "CHANGELOG.md has no section for $version" >&2; exit 1; }
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build and test (Release, unsigned)
+        run: |
+          set -o pipefail
+          xcodegen generate
+          xcodebuild -project MacShot.xcodeproj -scheme MacShot \
+            -configuration Release -derivedDataPath build/DD \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" \
+            build
+          xcodebuild -project MacShot.xcodeproj -scheme MacShot \
+            -configuration Debug -derivedDataPath build/DD \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" \
+            test

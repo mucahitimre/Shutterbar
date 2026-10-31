@@ -3,10 +3,10 @@ import MacShotCore
 import Testing
 
 struct CaptureGeometryTests {
-    // Ana ekran 1512×982 (sol-alt 0,0). Harici ekran solda ve yukarıda: AppKit frame (-1920, 200, 1920, 1080).
+    // Primary screen 1512×982 (bottom-left 0,0). External screen to the left and above: AppKit frame (-1920, 200, 1920, 1080).
     let primary = CGRect(x: 0, y: 0, width: 1512, height: 982)
     let leftExternal = CGRect(x: -1920, y: 200, width: 1920, height: 1080)
-    // Dikey yerleşim: ana ekranın üstünde.
+    // Vertical layout: above the primary screen.
     let aboveExternal = CGRect(x: 0, y: 982, width: 2560, height: 1440)
 
     @Test func primaryGlobalToLocalFlipsY() {
@@ -29,7 +29,7 @@ struct CaptureGeometryTests {
     }
 
     @Test func quartzGlobalForSecondaryDisplay() {
-        // Harici ekranın sol-üst köşesi: AppKit y = 1280 → Quartz y = 982 - 1280 = -298
+        // Top-left corner of the external screen: AppKit y = 1280 → Quartz y = 982 - 1280 = -298
         let p = CaptureGeometry.toQuartzGlobal(.zero, displayFrame: leftExternal, primaryScreenHeight: 982)
         #expect(p == CGPoint(x: -1920, y: -298))
         let q = CaptureGeometry.toQuartzGlobal(CGPoint(x: 5, y: 7), displayFrame: primary, primaryScreenHeight: 982)

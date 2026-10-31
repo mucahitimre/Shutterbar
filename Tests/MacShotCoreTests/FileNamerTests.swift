@@ -12,7 +12,7 @@ struct FileNamerTests {
 
     @Test func nameAndFolderUseLocalTime24h() {
         let namer = FileNamer(timeZone: istanbul)
-        let d = date("2026-10-31T13:05:09Z") // İstanbul UTC+3 → 16:05:09
+        let d = date("2026-10-31T13:05:09Z") // Istanbul UTC+3 → 16:05:09
         let url = namer.fileURL(in: root, date: d) { _ in false }
         #expect(url.path == "/tmp/shots/2026-10/Screenshot_2026-10-31_16-05-09.png")
     }
@@ -30,7 +30,7 @@ struct FileNamerTests {
 
     @Test func monthAndYearBoundaryFollowsTimeZone() {
         let namer = FileNamer(timeZone: istanbul)
-        // UTC'de hâlâ 2026, İstanbul'da 2027-01-01 01:30
+        // Still 2026 in UTC, 2027-01-01 01:30 in Istanbul
         let d = date("2026-12-31T22:30:00Z")
         #expect(namer.folderName(for: d) == "2027-01")
         #expect(namer.baseName(for: d) == "Screenshot_2027-01-01_01-30-00")

@@ -5,7 +5,7 @@ import MacShotCore
 import Testing
 
 struct ImageCropperTests {
-    /// Sol yarısı kırmızı, sağ yarısı mavi; `width`×`height` piksel.
+    /// Left half red, right half blue; `width`×`height` pixels.
     func makeImage(width: Int, height: Int) -> CGImage {
         let ctx = CGContext(
             data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
@@ -29,7 +29,7 @@ struct ImageCropperTests {
     @Test func nonRetinaCrop() throws {
         let image = makeImage(width: 200, height: 100)
         let cropped = try #require(ImageCropper.crop(image, pointRect: CGRect(x: 0, y: 0, width: 300, height: 30), displayPointSize: CGSize(width: 200, height: 100)))
-        #expect(cropped.width == 200) // sınıra kırpıldı
+        #expect(cropped.width == 200) // clipped to bounds
         #expect(cropped.height == 30)
     }
 
@@ -49,6 +49,6 @@ struct ImageCropperTests {
         let decoded = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
         #expect(decoded.width == 31)
         #expect(decoded.height == 17)
-        #expect(throws: (any Error).self) { try PNGEncoder.write(image, to: url) } // üzerine yazmaz
+        #expect(throws: (any Error).self) { try PNGEncoder.write(image, to: url) } // does not overwrite
     }
 }

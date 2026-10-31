@@ -1,14 +1,14 @@
 import CoreGraphics
 import Foundation
 
-/// Koordinat sistemleri:
-/// - **AppKit global**: `NSScreen.frame`; ana ekranın sol-alt köşesi orijin, y yukarı artar, point.
-/// - **Display-local**: bir ekranın sol-üst köşesi orijin, y aşağı artar, point. Overlay görünümü (flipped) ve
-///   saklanan son bölge bu sistemdedir.
-/// - **Piksel**: display-local × ölçek; donmuş `CGImage` içindeki konum (sol-üst orijin).
-/// - **Quartz global**: ana ekranın sol-üst köşesi orijin, y aşağı artar, point (`CGWarpMouseCursorPosition`).
+/// Coordinate systems:
+/// - **AppKit global**: `NSScreen.frame`; origin at the bottom-left of the primary screen, y increases upward, points.
+/// - **Display-local**: origin at the top-left of a screen, y increases downward, points. The overlay view (flipped) and
+///   the stored last region use this system.
+/// - **Pixel**: display-local × scale; position within the frozen `CGImage` (top-left origin).
+/// - **Quartz global**: origin at the top-left of the primary screen, y increases downward, points (`CGWarpMouseCursorPosition`).
 public enum CaptureGeometry {
-    /// Bu boyutun altındaki sürükleme tıklama sayılır.
+    /// A drag smaller than this counts as a click.
     public static let minimumSelectionSize: CGFloat = 3
 
     // MARK: Global ↔ display-local
@@ -37,23 +37,29 @@ public enum CaptureGeometry {
         )
     }
 
-    /// Display-local noktayı Quartz global koordinata çevirir. `primaryScreenHeight` = `NSScreen.screens[0].frame.height`.
+    /// Converts a display-local point to Quartz global coordinates. `primaryScreenHeight` = `NSScreen.screens[0].frame.height`.
     public static func toQuartzGlobal(_ point: CGPoint, displayFrame: CGRect, primaryScreenHeight: CGFloat) -> CGPoint {
         let appKitY = displayFrame.maxY - point.y
         return CGPoint(x: displayFrame.minX + point.x, y: primaryScreenHeight - appKitY)
     }
 
-    // MARK: Ölçek ve piksel
+    /// Quartz global rect (origin at the primary screen's top-left, y down) → display-local rect. Parts outside the screen are not clipped.
+    public static func toDisplayLocal(quartzRect rect: CGRect, displayFrame: CGRect, primaryScreenHeight: CGFloat) -> CGRect {
+        let originY = primaryScreenHeight - displayFrame.maxY
+        return rect.offsetBy(dx: -displayFrame.minX, dy: -originY)
+    }
 
-    /// Donmuş görüntünün gerçek ölçeği (piksel / point).
+    // MARK: Scale and pixels
+
+    /// Actual scale of the frozen image (pixels / point).
     public static func scale(imagePixelWidth: Int, displayPointWidth: CGFloat) -> CGFloat {
         guard displayPointWidth > 0 else { return 1 }
         return CGFloat(imagePixelWidth) / displayPointWidth
     }
 
-    /// Display-local point rect'ini görüntü piksel rect'ine çevirir.
-    /// Origin aşağı (floor), maxX/maxY yukarı (ceil) yuvarlanır; sonuç görüntü sınırına kırpılır.
-    /// Boş ya da tamamen sınır dışı rect için nil.
+    /// Converts a display-local point rect to an image pixel rect.
+    /// The origin is rounded down (floor), maxX/maxY up (ceil); the result is clipped to the image bounds.
+    /// nil for an empty or fully out-of-bounds rect.
     public static func pixelRect(forPointRect rect: CGRect, scale: CGFloat, imageWidth: Int, imageHeight: Int) -> CGRect? {
         let rect = rect.standardized
         guard rect.width > 0, rect.height > 0, scale > 0, imageWidth > 0, imageHeight > 0 else { return nil }
@@ -66,13 +72,13 @@ public enum CaptureGeometry {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
-    // MARK: Seçim
+    // MARK: Selection
 
     public static func clamp(_ point: CGPoint, to bounds: CGSize) -> CGPoint {
         CGPoint(x: min(max(point.x, 0), bounds.width), y: min(max(point.y, 0), bounds.height))
     }
 
-    /// Rect'i boyutunu koruyarak sınırların içine kaydırır (taşıma için).
+    /// Shifts the rect inside the bounds while keeping its size (for moving).
     public static func keepInside(_ rect: CGRect, bounds: CGSize) -> CGRect {
         var rect = rect.standardized
         rect.size.width = min(rect.width, bounds.width)
@@ -82,8 +88,8 @@ public enum CaptureGeometry {
         return rect
     }
 
-    /// Sürükleme başlangıcı ve güncel noktadan seçim rect'i. Nokta ekrana kırpılır (tek ekrana clamp);
-    /// `square` açıkken kısa kenar esas alınır ki kare de ekranın içinde kalsın.
+    /// Selection rect from the drag start and the current point. The point is clamped to the screen (single-screen clamp);
+    /// with `square` on, the shorter side is used so the square also stays on screen.
     public static func rect(from anchor: CGPoint, to current: CGPoint, square: Bool, bounds: CGSize) -> CGRect {
         let anchor = clamp(anchor, to: bounds)
         let current = clamp(current, to: bounds)
@@ -102,7 +108,7 @@ public enum CaptureGeometry {
         return rect.width < minimumSelectionSize || rect.height < minimumSelectionSize
     }
 
-    /// Rect'in tamamı sınırların içinde mi (son bölge geçerliliği için).
+    /// Whether the whole rect is inside the bounds (for last region validity).
     public static func fits(_ rect: CGRect, in bounds: CGSize) -> Bool {
         let rect = rect.standardized
         return rect.width > 0 && rect.height > 0

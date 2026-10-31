@@ -19,14 +19,15 @@ final class OverlayView: NSView {
 
     private let imageView = PassthroughImageView()
     private let dimLayer = CAShapeLayer()
+    private let tintLayer = CAShapeLayer()
     private let previewLayer = CAShapeLayer()
     private let borderLayer = CAShapeLayer()
-    private let dashLayer = CAShapeLayer()
     private let handlesLayer = CAShapeLayer()
     private let sizeLabel = OverlayView.makeLabel()
     private let cursorLabel = OverlayView.makeLabel()
-    private let hudLabel = OverlayView.makeLabel(fontSize: 14)
+    private let hud = HUDView()
     private let magnifier: MagnifierView?
+    private var magnifierEnabled = true
     private var scrollAccumulator: CGFloat = 0
 
     init(snapshot: DisplaySnapshot, quickCapture: Bool, magnifierPixelCount: Int?, preview: CGRect?) {
@@ -47,31 +48,40 @@ final class OverlayView: NSView {
         imageView.autoresizingMask = [.width, .height]
         addSubview(imageView)
 
+        // Styling follows macOS's own screenshot UI: no dimming until there is a selection, a thin white
+        // border with a soft shadow, round handles, and an accent-colored tint for windows / screens.
         dimLayer.fillRule = .evenOdd
-        dimLayer.fillColor = NSColor.black.withAlphaComponent(0.4).cgColor
+        dimLayer.fillColor = NSColor.black.withAlphaComponent(0.35).cgColor
+
+        tintLayer.fillColor = NSColor.controlAccentColor.withAlphaComponent(0.22).cgColor
+        tintLayer.strokeColor = NSColor.controlAccentColor.withAlphaComponent(0.8).cgColor
+        tintLayer.lineWidth = 2
 
         previewLayer.fillColor = nil
-        previewLayer.strokeColor = NSColor.white.withAlphaComponent(0.4).cgColor
+        previewLayer.strokeColor = NSColor.white.withAlphaComponent(0.7).cgColor
         previewLayer.lineWidth = 1
-        previewLayer.lineDashPattern = [6, 4]
+        previewLayer.lineDashPattern = [5, 4]
 
         borderLayer.fillColor = nil
         borderLayer.strokeColor = NSColor.white.cgColor
         borderLayer.lineWidth = 1
-
-        dashLayer.fillColor = nil
-        dashLayer.strokeColor = NSColor.black.withAlphaComponent(0.8).cgColor
-        dashLayer.lineWidth = 1
-        dashLayer.lineDashPattern = [4, 4]
+        borderLayer.shadowColor = NSColor.black.cgColor
+        borderLayer.shadowOpacity = 0.45
+        borderLayer.shadowRadius = 1.5
+        borderLayer.shadowOffset = .zero
 
         handlesLayer.fillColor = NSColor.white.cgColor
-        handlesLayer.strokeColor = NSColor.black.withAlphaComponent(0.6).cgColor
-        handlesLayer.lineWidth = 1
+        handlesLayer.strokeColor = NSColor.black.withAlphaComponent(0.25).cgColor
+        handlesLayer.lineWidth = 0.5
+        handlesLayer.shadowColor = NSColor.black.cgColor
+        handlesLayer.shadowOpacity = 0.35
+        handlesLayer.shadowRadius = 1.5
+        handlesLayer.shadowOffset = CGSize(width: 0, height: 0.5)
 
         let overlay = ShapeHostView(frame: bounds)
         overlay.autoresizingMask = [.width, .height]
         overlay.wantsLayer = true
-        for sublayer in [dimLayer, previewLayer, borderLayer, dashLayer, handlesLayer] {
+        for sublayer in [dimLayer, tintLayer, previewLayer, borderLayer, handlesLayer] {
             sublayer.frame = bounds
             sublayer.actions = ["path": NSNull(), "hidden": NSNull()]
             overlay.layer?.addSublayer(sublayer)
@@ -80,7 +90,7 @@ final class OverlayView: NSView {
         addSubview(sizeLabel)
         if let magnifier { addSubview(magnifier) }
         addSubview(cursorLabel)
-        addSubview(hudLabel)
+        addSubview(hud)
 
         updateTrackingAreas()
         refresh()
@@ -104,11 +114,16 @@ final class OverlayView: NSView {
     }
 
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
+        addCursorRect(bounds, cursor: currentCursor)
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        NSCursor.crosshair.set()
+        currentCursor.set()
+    }
+
+    /// Camera for window / screen mode (as in macOS), crosshair for selections.
+    private var currentCursor: NSCursor {
+        machine.mode == .selection ? .crosshair : .camera
     }
 
     // MARK: External
@@ -120,17 +135,25 @@ final class OverlayView: NSView {
 
     /// Short-lived info text at the top center of the screen (R3.4).
     func showHUD(_ text: String, duration: TimeInterval = 2.5) {
-        hudLabel.stringValue = text
-        hudLabel.sizeToFit()
-        hudLabel.setFrameOrigin(CGPoint(x: (bounds.width - hudLabel.frame.width) / 2, y: 60))
-        hudLabel.alphaValue = 1
-        hudLabel.isHidden = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.3
-                self?.hudLabel.animator().alphaValue = 0
-            }
-        }
+        hud.show(text, in: bounds, duration: duration)
+    }
+
+    /// Mode and live preference changes from the capture toolbar.
+    func apply(mode: CaptureMode, quickCapture: Bool, snapsWindows: Bool, showsMagnifier: Bool) {
+        machine.mode = mode
+        machine.quickCapture = quickCapture
+        machine.snapsWindowsInSelection = snapsWindows
+        magnifierEnabled = showsMagnifier
+        window?.invalidateCursorRects(for: self)
+        currentCursor.set()
+        refresh()
+    }
+
+    /// The toolbar's Capture button: same as Enter.
+    func performCapture() {
+        let output = machine.key(.enter)
+        refresh()
+        emit(output)
     }
 
     func setWindowRects(_ rects: [CGRect]) {
@@ -152,7 +175,7 @@ final class OverlayView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         delegate?.overlayViewMouseEntered(self)
-        NSCursor.crosshair.set()
+        currentCursor.set()
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -287,63 +310,73 @@ final class OverlayView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        // Without a selection, the window under the cursor (snap) is shown like a selection.
-        let isHover = machine.selection == nil && machine.hoveredWindow != nil
-        let highlighted = machine.selection ?? machine.hoveredWindow
+        // Without a selection, the window (or screen) a click would capture gets an accent tint.
+        let hovered = machine.selection == nil ? machine.hoveredWindow : nil
+        let selection = machine.selection.flatMap { $0.width >= 1 && $0.height >= 1 ? $0 : nil }
 
-        let dim = CGMutablePath()
-        dim.addRect(bounds)
-        if let highlighted {
-            dim.addRect(highlighted)
+        if let hovered {
+            let inset = hovered.size == bounds.size ? 1 : 0
+            tintLayer.path = CGPath(rect: hovered.insetBy(dx: CGFloat(inset), dy: CGFloat(inset)), transform: nil)
+            tintLayer.isHidden = false
+        } else {
+            tintLayer.isHidden = true
         }
-        dimLayer.path = dim
 
-        if let preview = machine.preview {
+        // Dim outside the selection (or the last-region preview); no dimming otherwise.
+        if let cutout = selection ?? machine.preview {
+            let dim = CGMutablePath()
+            dim.addRect(bounds)
+            dim.addRect(cutout)
+            dimLayer.path = dim
+            dimLayer.isHidden = false
+        } else {
+            dimLayer.isHidden = true
+        }
+
+        if let preview = machine.preview, selection == nil {
             previewLayer.path = CGPath(rect: preview.insetBy(dx: 0.5, dy: 0.5), transform: nil)
             previewLayer.isHidden = false
         } else {
             previewLayer.isHidden = true
         }
 
-        if let selection = highlighted, selection.width >= 1, selection.height >= 1 {
-            borderLayer.path = CGPath(rect: selection.insetBy(dx: isHover ? 1 : -0.5, dy: isHover ? 1 : -0.5), transform: nil)
-            borderLayer.strokeColor = isHover ? NSColor.controlAccentColor.cgColor : NSColor.white.cgColor
-            borderLayer.lineWidth = isHover ? 2 : 1
-            dashLayer.path = CGPath(rect: selection.insetBy(dx: 0.5, dy: 0.5), transform: nil)
+        if let selection {
+            borderLayer.path = CGPath(rect: selection.insetBy(dx: -0.5, dy: -0.5), transform: nil)
             borderLayer.isHidden = false
-            dashLayer.isHidden = isHover
 
-            let showHandles = !isHover && !machine.quickCapture && machine.phase == .idle
+            let showHandles = !machine.quickCapture && machine.phase == .idle && machine.mode == .selection
             if showHandles {
                 let handles = CGMutablePath()
                 for handle in SelectionStateMachine.Handle.allCases {
                     let p = SelectionStateMachine.handlePoint(handle, of: selection)
-                    handles.addRect(CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7))
+                    handles.addEllipse(in: CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8))
                 }
                 handlesLayer.path = handles
             }
             handlesLayer.isHidden = !showHandles
+        } else {
+            borderLayer.isHidden = true
+            handlesLayer.isHidden = true
+        }
 
+        // Pixel size below the selection, centered (above it when there is no room).
+        if let measured = selection ?? hovered, machine.mode == .selection || hovered != nil {
             let px = CaptureGeometry.pixelRect(
-                forPointRect: selection,
+                forPointRect: measured,
                 scale: snapshot.scale,
                 imageWidth: snapshot.image.width,
                 imageHeight: snapshot.image.height
             ) ?? .zero
             sizeLabel.stringValue = "\(Int(px.width)) × \(Int(px.height))"
             sizeLabel.sizeToFit()
-            var origin = CGPoint(x: selection.minX, y: selection.maxY + 6)
-            if origin.y + sizeLabel.frame.height > bounds.height {
-                origin.y = selection.minY - sizeLabel.frame.height - 6
-            }
-            if origin.y < 0 { origin.y = selection.minY + 6; origin.x = selection.minX + 6 }
-            origin.x = min(max(origin.x, 0), bounds.width - sizeLabel.frame.width)
+            let size = sizeLabel.frame.size
+            var origin = CGPoint(x: measured.midX - size.width / 2, y: measured.maxY + 8)
+            if origin.y + size.height > bounds.height - 4 { origin.y = measured.minY - size.height - 8 }
+            if origin.y < 4 { origin.y = measured.maxY - size.height - 8 }
+            origin.x = min(max(origin.x, 4), bounds.width - size.width - 4)
             sizeLabel.setFrameOrigin(origin)
             sizeLabel.isHidden = false
         } else {
-            borderLayer.isHidden = true
-            dashLayer.isHidden = true
-            handlesLayer.isHidden = true
             sizeLabel.isHidden = true
         }
 
@@ -362,13 +395,18 @@ final class OverlayView: NSView {
         var origin = CGPoint(x: cursor.x + gap, y: cursor.y + gap)
         if origin.x + block.width > bounds.width { origin.x = cursor.x - gap - block.width }
         if origin.y + block.height > bounds.height { origin.y = cursor.y - gap - block.height }
+        let showsTools = machine.mode == .selection
         if let magnifier {
-            magnifier.update(pixel: pixel)
-            magnifier.setFrameOrigin(origin)
-            magnifier.isHidden = false
+            let visible = showsTools && magnifierEnabled
+            if visible {
+                magnifier.update(pixel: pixel)
+                magnifier.setFrameOrigin(origin)
+            }
+            magnifier.isHidden = !visible
         }
-        cursorLabel.setFrameOrigin(CGPoint(x: origin.x, y: origin.y + magnifierSize.height))
-        cursorLabel.isHidden = false
+        let magnifierOffset = (magnifierEnabled && magnifier != nil) ? magnifierSize.height : 0
+        cursorLabel.setFrameOrigin(CGPoint(x: origin.x, y: origin.y + magnifierOffset))
+        cursorLabel.isHidden = !showsTools
     }
 
     private static func makeLabel(fontSize: CGFloat = 11) -> NSTextField {
@@ -376,8 +414,8 @@ final class OverlayView: NSView {
         label.font = .monospacedDigitSystemFont(ofSize: fontSize, weight: .medium)
         label.textColor = .white
         label.wantsLayer = true
-        label.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.7).cgColor
-        label.layer?.cornerRadius = 4
+        label.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
+        label.layer?.cornerCurve = .continuous
         label.isHidden = true
         return label
     }
@@ -396,11 +434,13 @@ private final class PassthroughImageView: NSImageView {
 private final class PaddedLabel: NSTextField {
     override var intrinsicContentSize: NSSize {
         let size = super.intrinsicContentSize
-        return NSSize(width: size.width + 10, height: size.height + 4)
+        return NSSize(width: size.width + 16, height: size.height + 6)
     }
 
+    /// Pill shape: fully rounded ends.
     override func sizeToFit() {
         setFrameSize(intrinsicContentSize)
+        layer?.cornerRadius = intrinsicContentSize.height / 2
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }

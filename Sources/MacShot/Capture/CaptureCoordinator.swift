@@ -19,7 +19,6 @@ final class CaptureCoordinator {
         self.preferences = preferences
         self.output = CaptureOutput(preferences: preferences)
         self.onPermissionMissing = onPermissionMissing
-        overlay.onMagnifierPixelCountChange = { [preferences] in preferences.magnifierPixelCount = $0 }
     }
 
     func captureRegion() {
@@ -47,7 +46,8 @@ final class CaptureCoordinator {
         let start = clock.now
 
         // The window list is taken together with the freeze; once the overlay is open our own panels would be included too.
-        let windows = preferences.windowSnap ? WindowList.onScreen() : []
+        // Always taken: window mode can be chosen in the toolbar after the overlay opens.
+        let windows = WindowList.onScreen()
         let snapshots: [DisplaySnapshot]
         do {
             snapshots = try await snapshotter.snapshotAll()
@@ -57,17 +57,20 @@ final class CaptureCoordinator {
         }
         let frozen = clock.now
 
-        let result = await overlay.run(
+        let chosen = await overlay.run(
             snapshots: snapshots,
             quickCapture: preferences.quickCapture,
             magnifierPixelCount: preferences.magnifier ? preferences.magnifierPixelCount : nil,
-            preview: preview(for: snapshots),
+            preview: preferences.rememberLastSelection ? preview(for: snapshots) : nil,
             windows: windows,
             hud: hud
         ) {
             let shown = clock.now
             Log.capture.info("Latency: freeze \(Self.ms(frozen - start), privacy: .public) ms, overlay visible \(Self.ms(shown - start), privacy: .public) ms, screen count \(snapshots.count)")
         }
+
+        // Self-timer: the region was chosen on the frozen frame; after the countdown it is captured live.
+        let result = await applyTimer(to: chosen)
 
         switch result {
         case .cancelled:
@@ -82,13 +85,43 @@ final class CaptureCoordinator {
             } else {
                 remember(rect, on: snapshot)
             }
+            ShutterSound.play()
             switch intent {
             case .afterCapture: output.deliver([image])
             case .clipboardOnly: output.copyOnly([image])
             }
         case .screens(let snapshots):
             lastRegion.record(.fullScreen)
+            ShutterSound.play()
             output.deliver(snapshots.map(\.image))
+        }
+    }
+
+    private func applyTimer(to result: OverlayResult) async -> OverlayResult {
+        let seconds = preferences.captureTimer.rawValue
+        guard seconds > 0 else { return result }
+        let displays: [DisplaySnapshot] = switch result {
+        case .cancelled: []
+        case .region(let snapshot, _, _, _): [snapshot]
+        case .screens(let snapshots): snapshots
+        }
+        guard let first = displays.first else { return result }
+        let screen = NSScreen.screens.first { $0.displayID == first.displayID } ?? NSScreen.main
+        guard await Countdown.run(seconds: seconds, on: screen) else { return .cancelled }
+
+        do {
+            var fresh: [DisplaySnapshot] = []
+            for display in displays {
+                fresh.append(try await snapshotter.snapshot(displayID: display.displayID))
+            }
+            return switch result {
+            case .region(_, let rect, let intent, let isWindow): .region(fresh[0], rect, intent, isWindow: isWindow)
+            case .screens: .screens(fresh)
+            case .cancelled: .cancelled
+            }
+        } catch {
+            report(error)
+            return .cancelled
         }
     }
 
@@ -138,6 +171,7 @@ final class CaptureCoordinator {
             return
         }
         Log.capture.info("Last region captured without overlay")
+        ShutterSound.play()
         remember(last.rect, on: snapshot)
         output.deliver([image])
     }

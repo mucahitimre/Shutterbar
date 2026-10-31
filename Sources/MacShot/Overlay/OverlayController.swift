@@ -17,6 +17,8 @@ enum OverlayResult {
 /// Opens an overlay panel for each screen and waits for the user's selection.
 @MainActor
 final class OverlayController: OverlayViewDelegate {
+    private let preferences: Preferences
+    private var toolbar: CaptureToolbar?
     private var panels: [OverlayPanel] = []
     private var views: [OverlayView] = []
     private var continuation: CheckedContinuation<OverlayResult, Never>?
@@ -24,8 +26,9 @@ final class OverlayController: OverlayViewDelegate {
 
     var isPresented: Bool { continuation != nil }
 
-    /// Magnifier size changed with the mouse wheel; the caller listens to persist it.
-    var onMagnifierPixelCountChange: ((Int) -> Void)?
+    init(preferences: Preferences = .shared) {
+        self.preferences = preferences
+    }
 
     /// - Parameter preview: which display (displayID) and rect the last region is on.
     func run(
@@ -76,6 +79,7 @@ final class OverlayController: OverlayViewDelegate {
             views.append(view)
         }
 
+        applyPreferences()
         NSApp.activate()
         let mouse = NSEvent.mouseLocation
         let active = views.first { $0.snapshot.frame.contains(mouse) } ?? views.first
@@ -84,8 +88,61 @@ final class OverlayController: OverlayViewDelegate {
             active.updateCursor(fromGlobal: mouse)
             if let hud { active.showHUD(hud) }
         }
-        NSCursor.crosshair.set()
         CATransaction.flush()
+
+        // The toolbar comes right after the frozen frame is on screen, on the screen under the mouse.
+        let toolbar = CaptureToolbar(mode: preferences.captureMode, actions: .init(
+            close: { [weak self] in self?.finish(.cancelled) },
+            setMode: { [weak self] mode in
+                self?.preferences.captureMode = mode
+                self?.applyPreferences()
+            },
+            capture: { [weak self] in self?.activeView?.performCapture() },
+            optionsMenu: { [weak self] in self?.makeOptionsMenu() ?? NSMenu() }
+        ))
+        if let screen = active.flatMap({ view in screens.first { $0.displayID == view.snapshot.displayID } }) ?? NSScreen.main {
+            toolbar.present(on: screen)
+        }
+        self.toolbar = toolbar
+    }
+
+    /// The view the toolbar's Capture button acts on: the key overlay, else the one under the mouse.
+    private var activeView: OverlayView? {
+        views.first { $0.window?.isKeyWindow == true }
+            ?? views.first { $0.snapshot.frame.contains(NSEvent.mouseLocation) }
+    }
+
+    /// Pushes mode and live options to every screen.
+    private func applyPreferences() {
+        for view in views {
+            view.apply(
+                mode: preferences.captureMode,
+                quickCapture: preferences.quickCapture,
+                snapsWindows: preferences.windowSnap,
+                showsMagnifier: preferences.magnifier
+            )
+        }
+    }
+
+    private func makeOptionsMenu() -> NSMenu {
+        CaptureOptionsMenu.make(
+            preferences: preferences,
+            chooseFolder: { [weak self] in self?.chooseFolder() },
+            onChange: { [weak self] in self?.applyPreferences() }
+        )
+    }
+
+    /// The open panel sits below the screen-saver level; lower the overlay while it is up.
+    private func chooseFolder() {
+        let windows: [NSWindow] = panels + [toolbar].compactMap { $0 }
+        let levels = windows.map(\.level)
+        windows.forEach { $0.level = .normal }
+        let current = SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark)
+        if let bookmark = SaveFolder.choose(current: current) {
+            preferences.saveFolderBookmark = bookmark
+        }
+        zip(windows, levels).forEach { $0.level = $1 }
+        if let view = activeView { makeKey(view) }
     }
 
     private func makeKey(_ view: OverlayView) {
@@ -96,12 +153,22 @@ final class OverlayController: OverlayViewDelegate {
     private func finish(_ result: OverlayResult) {
         guard let continuation else { return }
         self.continuation = nil
-        for panel in panels {
-            panel.orderOut(nil)
-            panel.contentView = nil
+        // Fade out quickly; the frozen frame is already captured, so this costs nothing.
+        let closing: [NSWindow] = panels + [toolbar].compactMap { $0 }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Motion.duration(0.12)
+            closing.forEach { $0.animator().alphaValue = 0 }
+        } completionHandler: {
+            MainActor.assumeIsolated {
+                closing.forEach { window in
+                    window.orderOut(nil)
+                    window.contentView = nil
+                }
+            }
         }
         panels.removeAll()
         views.removeAll()
+        toolbar = nil
         NSCursor.arrow.set()
         previousApp?.activate()
         previousApp = nil
@@ -151,7 +218,7 @@ final class OverlayController: OverlayViewDelegate {
         for view in views {
             view.setMagnifierPixelCount(count)
         }
-        onMagnifierPixelCountChange?(count)
+        preferences.magnifierPixelCount = count
     }
 
     func overlayViewMouseEntered(_ view: OverlayView) {

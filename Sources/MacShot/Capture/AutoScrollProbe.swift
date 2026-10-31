@@ -28,15 +28,19 @@ enum AutoScrollProbe {
                 let mouse = NSEvent.mouseLocation
                 guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }), let displayID = screen.displayID else { return }
                 let local = CaptureGeometry.toDisplayLocal(mouse, displayFrame: screen.frame)
-                let rect = CGRect(x: local.x - 200, y: local.y - 150, width: 400, height: 300)
+                let rect = CGRect(x: local.x - 250, y: local.y - 300, width: 500, height: 600)
                     .intersection(CGRect(origin: .zero, size: screen.frame.size))
                 let capturer = try await RegionCapturer(displayID: displayID, rect: rect)
 
                 let before = try await capturer.capture()
-                let posted = postScroll(pixels: 120, steps: 3)
+                let posted = postScroll(pixels: 80, steps: 1)
                 try? await Task.sleep(for: .milliseconds(600))
                 let after = try await capturer.capture()
 
+                // Keep the frames for offline inspection.
+                for (name, image) in [("probe-before.png", before), ("probe-after.png", after)] {
+                    try? PNGEncoder.write(image, to: SaveFolder.defaultRoot.appendingPathComponent(name), overwrite: true)
+                }
                 let shift = measureShift(before, after)
                 let verdict = switch shift {
                 case .some(let dy) where dy > 0: "WORKS — the page moved \(dy) px"

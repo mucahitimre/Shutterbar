@@ -30,14 +30,22 @@ fileprivate struct Page {
 
     /// The frame visible at scroll offset `s`. `noise` changes the trailing 8 columns (an overlay scroll bar).
     /// `sidebar`: a static column band on the left (navigation that doesn't scroll), as in a whole-window selection.
-    func frame(at s: Int, noise: UInt8 = 0, sidebar: Int = 0) -> CGImage {
+    /// `jitter`: per-frame noise of up to ±12 per channel on content pixels, like the antialiasing browsers
+    /// re-rasterize while scrolling (frames are then never pixel-identical).
+    func frame(at s: Int, noise: UInt8 = 0, sidebar: Int = 0, jitter: UInt64? = nil) -> CGImage {
         makeImage(width: Page.width + sidebar, height: viewport) { x, y in
             if x < sidebar { return (UInt8(30 + (y * 7) % 90), UInt8(x * 3), 90) }
             let x = x - sidebar
             if x >= Page.width - 8 { return (noise, noise, noise) }
             if y < header { return self.header(x, y) }
             if y >= viewport - footer { return self.footer(x, y - (viewport - footer)) }
-            return pixel(x, s + y - header)
+            let p = pixel(x, s + y - header)
+            guard let jitter, p != (250, 250, 250) else { return p }
+            let n = Page.mix(jitter &* 1_000_003 &+ UInt64(y * 4096 + x))
+            func shake(_ v: UInt8, _ shift: UInt64) -> UInt8 {
+                UInt8(clamping: Int(v) + Int((n >> shift) % 25) - 12)
+            }
+            return (shake(p.0, 0), shake(p.1, 8), shake(p.2, 16))
         }
     }
 
@@ -209,5 +217,17 @@ struct ScrollStitcherTests {
             x < 30 ? sidebar(x, y) : (UInt8((x * 7 + (y + 5) * 13) % 251), UInt8((y + 5) % 251), 40)
         }))
         #expect(ScrollStitcher.scrollingColumns(a, b) == 30..<100)
+    }
+
+    @Test func antialiasingNoiseDoesNotBreakMatching() throws {
+        // Real browsers redraw text slightly differently after every scroll; exact row hashes never match.
+        var capture = ScrollingCapture(excludedTrailingColumns: 8)
+        let scrolls = [0, 45, 110, 190, 260, 340]
+        var results: [ScrollingCapture.AddResult] = []
+        for (i, s) in scrolls.enumerated() {
+            results.append(capture.add(page.frame(at: s, noise: UInt8(i * 40), jitter: UInt64(i + 1))))
+        }
+        #expect(results == [.first, .appended(45), .appended(65), .appended(80), .appended(70), .appended(80)])
+        #expect(capture.height == page.header + 340 + (page.viewport - page.header - page.footer) + page.footer)
     }
 }

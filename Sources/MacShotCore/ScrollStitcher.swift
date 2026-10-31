@@ -35,25 +35,50 @@ public struct PixelBuffer: Sendable {
 
 /// Per-row fingerprints of one frame over a column band. Rows are top to bottom.
 public struct RowSignatures: Equatable, Sendable {
+    /// Number of vertical strips each row is split into. A row matches when most strips match, so a narrow
+    /// changing column (scroll bar thumb, caret, small animation) spoils one strip instead of the whole row.
+    public static let stripCount = 16
+    /// Largest difference in a strip's mean luminance (0–255) that still counts as equal. Browsers re-rasterize
+    /// text antialiasing while scrolling, so exact pixel equality does not hold; averaging over a strip cancels it.
+    public static let stripTolerance: Float = 4
+
     public let hashes: [UInt64]
     /// Rows with visible content (not a single flat color). Flat rows match anywhere, so they are ignored when matching.
     public let informative: [Bool]
+    /// `stripCount` mean luminances per row, row-major.
+    public let strips: [Float]
 
     public var count: Int { hashes.count }
 
     public init(hashes: [UInt64], informative: [Bool]) {
         self.hashes = hashes
         self.informative = informative
+        strips = hashes.flatMap { Array(repeating: Float($0 % 256), count: Self.stripCount) }
+    }
+
+    /// Fraction of strips that are equal between row `a` of these signatures and row `b` of `other`.
+    func stripMatch(_ a: Int, _ other: RowSignatures, _ b: Int) -> Double {
+        let k = Self.stripCount
+        var equal = 0
+        for i in 0..<k where abs(strips[a * k + i] - other.strips[b * k + i]) <= Self.stripTolerance { equal += 1 }
+        return Double(equal) / Double(k)
     }
 
     public init(buffer: PixelBuffer, columns: Range<Int>) {
         let columns = columns.clamped(to: 0..<buffer.width)
+        let k = Self.stripCount
         var hashes = [UInt64](repeating: 0, count: buffer.height)
         var informative = [Bool](repeating: false, count: buffer.height)
+        var strips = [Float](repeating: 0, count: buffer.height * k)
+        var stripPixels = [Int](repeating: 0, count: k)
+        let width = max(1, columns.count)
+        for x in columns { stripPixels[(x - columns.lowerBound) * k / width] += 1 }
         for y in 0..<buffer.height {
             var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+            var sums = [Int](repeating: 0, count: k)
             let first = columns.isEmpty ? (0, 0, 0) : buffer.quantized(columns.lowerBound, y)
             var flat = true
+            let rowStart = y * buffer.width * 4
             for x in columns {
                 let (r, g, b) = buffer.quantized(x, y)
                 if flat, (r, g, b) != first { flat = false }
@@ -61,12 +86,19 @@ public struct RowSignatures: Equatable, Sendable {
                     hash ^= UInt64(byte)
                     hash &*= 0x0000_0100_0000_01b3
                 }
+                let i = rowStart + x * 4
+                // Rec. 601 luma ×1000, full precision (not quantized).
+                sums[(x - columns.lowerBound) * k / width] += 299 * Int(buffer.bytes[i]) + 587 * Int(buffer.bytes[i + 1]) + 114 * Int(buffer.bytes[i + 2])
+            }
+            for i in 0..<k where stripPixels[i] > 0 {
+                strips[y * k + i] = Float(sums[i]) / Float(stripPixels[i] * 1000)
             }
             hashes[y] = hash
             informative[y] = !flat
         }
         self.hashes = hashes
         self.informative = informative
+        self.strips = strips
     }
 
     /// - Parameter excludingTrailing: pixels ignored at the right edge (the overlay scroll bar appears there while scrolling).
@@ -112,11 +144,12 @@ public enum ScrollStitcher {
     /// Only counted while the middle still changes, so an unchanged frame doesn't become "all static".
     public static func staticBands(_ a: RowSignatures, _ b: RowSignatures) -> (top: Int, bottom: Int) {
         let n = min(a.count, b.count)
+        func same(_ row: Int) -> Bool { a.stripMatch(row, b, row) == 1 }
         var top = 0
-        while top < n, a.hashes[top] == b.hashes[top] { top += 1 }
+        while top < n, same(top) { top += 1 }
         guard top < n else { return (0, 0) }
         var bottom = 0
-        while bottom < n - top, a.hashes[n - 1 - bottom] == b.hashes[n - 1 - bottom] { bottom += 1 }
+        while bottom < n - top, same(n - 1 - bottom) { bottom += 1 }
         return (top, bottom)
     }
 
@@ -129,13 +162,15 @@ public enum ScrollStitcher {
         bottom: Int,
         minimumOverlap: Double = 0.2,
         minimumMatchRatio: Double = 0.9,
-        minimumInformativeRows: Int = 8
+        minimumInformativeRows: Int = 8,
+        minimumStripMatch: Double = 0.75
     ) -> Int? {
         let n = min(a.count, b.count)
         let start = top, end = n - bottom
         let span = end - start
         guard span > 0 else { return nil }
-        if Array(a.hashes[start..<end]) == Array(b.hashes[start..<end]) { return 0 }
+        // Unchanged: every row (mostly) the same in place.
+        if (start..<end).allSatisfy({ a.stripMatch($0, b, $0) >= minimumStripMatch }) { return 0 }
 
         let minOverlap = max(1, Int(Double(span) * minimumOverlap))
         // Smallest shift first: it has the largest overlap, so it is the most trustworthy match.
@@ -145,7 +180,7 @@ public enum ScrollStitcher {
                 let rowA = start + dy + i, rowB = start + i
                 guard a.informative[rowA] || b.informative[rowB] else { continue }
                 compared += 1
-                if a.hashes[rowA] == b.hashes[rowB] { matched += 1 }
+                if a.stripMatch(rowA, b, rowB) >= minimumStripMatch { matched += 1 }
             }
             if compared >= minimumInformativeRows, Double(matched) / Double(compared) >= minimumMatchRatio {
                 return dy

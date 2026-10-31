@@ -286,4 +286,70 @@ struct SelectionStateMachineTests {
         _ = sm.mouseUp(at: CGPoint(x: 450, y: 350))
         #expect(!sm.selectionIsWindow)
     }
+
+    @Test func windowModeCapturesWindowOnClickWithoutDrawing() {
+        var sm = machine(quick: false)
+        let window = CGRect(x: 100, y: 100, width: 300, height: 200)
+        sm.windowRects = [window]
+        sm.mode = .window
+        sm.mouseMoved(to: CGPoint(x: 150, y: 150))
+        #expect(sm.hoveredWindow == window)
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        sm.mouseDragged(to: CGPoint(x: 300, y: 300))
+        #expect(sm.mouseUp(at: CGPoint(x: 150, y: 150)) == .capture(window))
+        #expect(sm.selectionIsWindow)
+    }
+
+    @Test func windowModeClickOnEmptySpaceDoesNothing() {
+        var sm = machine()
+        sm.windowRects = [CGRect(x: 100, y: 100, width: 300, height: 200)]
+        sm.mode = .window
+        _ = sm.mouseDown(at: CGPoint(x: 800, y: 700))
+        #expect(sm.mouseUp(at: CGPoint(x: 800, y: 700)) == .none)
+    }
+
+    @Test func screenModeHighlightsAndCapturesScreen() {
+        var sm = machine()
+        sm.mode = .screen
+        sm.mouseMoved(to: CGPoint(x: 10, y: 10))
+        #expect(sm.hoveredWindow == CGRect(origin: .zero, size: bounds))
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        #expect(sm.mouseUp(at: CGPoint(x: 10, y: 10)) == .captureActiveScreen)
+        #expect(sm.key(.enter) == .captureActiveScreen)
+    }
+
+    @Test func screenModeCopyIsMarkedAsWhole() {
+        var sm = machine()
+        sm.mode = .screen
+        #expect(sm.key(.copy) == .copy(CGRect(origin: .zero, size: bounds)))
+        #expect(sm.selectionIsWindow)
+    }
+
+    @Test func windowModeEnterCapturesHoveredWindow() {
+        var sm = machine()
+        let window = CGRect(x: 100, y: 100, width: 300, height: 200)
+        sm.windowRects = [window]
+        sm.mode = .window
+        sm.mouseMoved(to: CGPoint(x: 200, y: 200))
+        #expect(sm.key(.enter) == .capture(window))
+    }
+
+    @Test func switchingModeClearsSelectionAndPreview() {
+        var sm = machine(quick: false, preview: CGRect(x: 5, y: 5, width: 50, height: 50))
+        #expect(sm.selection != nil)
+        sm.mode = .window
+        #expect(sm.selection == nil)
+        #expect(sm.preview == nil)
+    }
+
+    @Test func snapOffInSelectionModeIgnoresWindows() {
+        var sm = machine(quick: false)
+        sm.windowRects = [CGRect(x: 100, y: 100, width: 300, height: 200)]
+        sm.snapsWindowsInSelection = false
+        sm.mouseMoved(to: CGPoint(x: 150, y: 150))
+        #expect(sm.hoveredWindow == nil)
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        _ = sm.mouseUp(at: CGPoint(x: 150, y: 150))
+        #expect(sm.selection == nil)
+    }
 }

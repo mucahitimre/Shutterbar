@@ -41,6 +41,22 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 - [x] Editor self-test (debug, one annotation of each tool added through the model): window opens, Done saves the output; the saved PNG matches the canvas — Claude, 2026-10-31 (not mouse interaction)
 - [ ] Editor toolbar appearance — could not be verified from an image because `cacheDisplay` does not draw the native segmented control; it is present in the view hierarchy (x 12–372). Pending
 
+## Native design (unreleased)
+
+- [ ] Capture toolbar appears at the bottom center of the screen under the mouse, dark HUD look; Close / Capture / modes work; Options menu items toggle and apply live
+- [ ] Window mode: camera cursor, accent highlight, click captures the window; last region unchanged
+- [ ] Screen mode: click captures that screen
+- [ ] Selection look: no dim before selecting, thin border with shadow, round handles, pill size label below the selection
+- [ ] Self-timer 5 / 10 s: countdown in the middle, Esc / click cancels, captured content is live
+- [ ] Floating thumbnail: slides in, stays while hovered, click opens the editor and Done replaces the saved file, drag into Finder/Mail works, swipe right dismisses, right-click menu
+- [ ] Sound plays and can be turned off
+- [ ] Editor toolbar: tools group, color and width menus with checkmarks, undo/redo enablement, Share menu, Copy, Done (blue, Enter)
+- [ ] Settings tabs resize smoothly; every setting works; light and dark mode
+- [ ] Onboarding steps and checkmarks; About panel with link
+- [ ] Reduce Motion: no slide / fade animations
+- [x] No Auto Layout conflicts when opening the editor, Settings and onboarding (log check, Debug flags) — Claude, 2026-10-31
+- [x] Settings 520×285 (General) and onboarding 460×451 content sizes measured in-app — Claude, 2026-10-31
+
 ## Release package (per release)
 
 - [ ] DMG opens, drag-to-Applications works, app launches without a Gatekeeper warning (`spctl -a -vv` says "Notarized Developer ID")
@@ -49,7 +65,7 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 
 ## Automated checks run by Claude
 
-- [x] `xcodebuild build` and `test`: 86/86 tests green (v0.2), no warnings from our code
+- [x] `xcodebuild build` and `test`: 98/98 tests green (native design branch), no warnings from our code
 - [x] CI command run locally unsigned and without Local.xcconfig: green; GitHub Actions green on `main`
 - [x] Signing: Apple Development (Team 4SFTG4T5YD); entitlements: app-sandbox, assets.pictures.read-write, files.user-selected.read-write, files.bookmarks.app-scope
 - [x] Legacy capture API scan (`CGWindowListCreateImage`, `CGDisplayCreateImage`): no usage

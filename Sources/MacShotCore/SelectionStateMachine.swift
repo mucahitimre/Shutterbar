@@ -59,11 +59,27 @@ public struct SelectionStateMachine: Sendable {
     public private(set) var phase: Phase = .idle
     public private(set) var cursor: CGPoint = .zero
 
-    /// Windows at freeze time (display-local, front to back). Empty means snapping is off.
+    /// Windows at freeze time (display-local, front to back).
     public var windowRects: [CGRect] = [] {
         didSet { updateHover() }
     }
-    /// The window under the cursor while there is no selection; becomes the selection on click.
+    /// In selection mode, highlight and pick windows too (the "Window detection" preference).
+    public var snapsWindowsInSelection = true {
+        didSet { updateHover() }
+    }
+    /// The overlay mode. Switching clears the selection.
+    public var mode: CaptureMode = .selection {
+        didSet {
+            guard mode != oldValue else { return }
+            selection = nil
+            pickedWindow = nil
+            phase = .idle
+            if mode != .selection { preview = nil }
+            updateHover()
+        }
+    }
+    /// What a click would capture right now while there is no selection: a window (selection / window
+    /// mode) or the whole screen (screen mode).
     public private(set) var hoveredWindow: CGRect?
 
     /// The selection is an unmodified window picked by clicking (not a drawn region). Such captures do not
@@ -102,6 +118,9 @@ public struct SelectionStateMachine: Sendable {
         cursor = point
         lastPoint = point
         self.modifiers = modifiers
+
+        // Window and screen modes only react to clicks (on mouse up).
+        guard mode == .selection else { return .none }
 
         if !quickCapture, let selection {
             if clickCount >= 2, selection.contains(point) {
@@ -149,6 +168,20 @@ public struct SelectionStateMachine: Sendable {
     }
 
     public mutating func mouseUp(at point: CGPoint) -> Output {
+        switch mode {
+        case .selection:
+            break
+        case .window:
+            cursor = CaptureGeometry.clamp(point, to: bounds)
+            guard let window = WindowSnap.window(at: cursor, in: windowRects) else { return .none }
+            selection = window
+            pickedWindow = window
+            hoveredWindow = nil
+            return .capture(window)
+        case .screen:
+            return .captureActiveScreen
+        }
+
         mouseDragged(to: point, modifiers: modifiers)
         let finished = phase
         phase = .idle
@@ -157,7 +190,7 @@ public struct SelectionStateMachine: Sendable {
         case .drawing:
             guard let selection, !CaptureGeometry.isClick(selection) else {
                 // Click: if there is a window under it, that window is selected; otherwise (with quick capture off) the old selection is cleared.
-                if let window = WindowSnap.window(at: point, in: windowRects) {
+                if snapsWindowsInSelection, let window = WindowSnap.window(at: point, in: windowRects) {
                     self.selection = window
                     pickedWindow = window
                     hoveredWindow = nil
@@ -199,9 +232,10 @@ public struct SelectionStateMachine: Sendable {
         case .escape:
             return .cancel
         case .enter:
-            return acceptedRect.map(Output.capture) ?? .none
+            if mode == .screen { return .captureActiveScreen }
+            return acceptRect().map(Output.capture) ?? .none
         case .copy:
-            return acceptedRect.map(Output.copy) ?? .none
+            return acceptRect().map(Output.copy) ?? .none
         case .delete:
             selection = nil
             phase = .idle
@@ -277,9 +311,18 @@ public struct SelectionStateMachine: Sendable {
     }
 
     /// The rect Enter / ⌘C accepts: the drag must be finished; without a selection, the last region preview.
-    private var acceptedRect: CGRect? {
+    private mutating func acceptRect() -> CGRect? {
         guard phase == .idle else { return nil }
-        return selection ?? preview
+        switch mode {
+        case .selection:
+            return selection ?? preview
+        case .window, .screen:
+            // Whole windows and screens are marked as picked so they don't replace the last region.
+            guard let rect = mode == .window ? hoveredWindow : CGRect(origin: .zero, size: bounds) else { return nil }
+            selection = rect
+            pickedWindow = rect
+            return rect
+        }
     }
 
     private mutating func updateDrawing(anchor: CGPoint) {
@@ -292,7 +335,14 @@ public struct SelectionStateMachine: Sendable {
 
     /// Highlight only when there is no selection and the mouse is idle.
     private mutating func updateHover() {
-        guard selection == nil, phase == .idle else { return }
-        hoveredWindow = WindowSnap.window(at: cursor, in: windowRects)
+        switch mode {
+        case .selection:
+            guard selection == nil, phase == .idle else { return }
+            hoveredWindow = snapsWindowsInSelection ? WindowSnap.window(at: cursor, in: windowRects) : nil
+        case .window:
+            hoveredWindow = WindowSnap.window(at: cursor, in: windowRects)
+        case .screen:
+            hoveredWindow = CGRect(origin: .zero, size: bounds)
+        }
     }
 }

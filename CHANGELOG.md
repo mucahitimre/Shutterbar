@@ -4,6 +4,18 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+- Capture toolbar modeled on macOS's screenshot toolbar: close, entire screen / window / selection modes, Options menu, Capture.
+- Window mode (hover + click) and screen mode, with the system camera cursor and an accent-colored highlight.
+- Self-timer (5 / 10 seconds).
+- Floating thumbnail after each capture: click to annotate, drag to share, swipe to dismiss.
+- Optional system screenshot sound.
+
+### Changed
+- Overlay styled like the system UI: no dimming until a selection exists, thin shadowed border, round handles, pill-shaped labels, HUD messages.
+- Native tabbed Settings window, onboarding redesign, status menu with symbols and an About panel.
+- Annotation editor uses a native unified toolbar with color / width menus and Share.
+
 ## [0.2.0] - 2026-10-31
 
 ### Added

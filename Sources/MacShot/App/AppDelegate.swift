@@ -36,6 +36,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             capture.openEditorSample()
             return
         }
+        // Development: `-MacShotShowWindows` opens settings and onboarding (layout checks).
+        if ProcessInfo.processInfo.arguments.contains("-MacShotShowWindows") {
+            settings?.show()
+            onboarding.show()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                for window in NSApp.windows where window.isVisible {
+                    Log.app.info("Window '\(window.title, privacy: .public)' content \(NSStringFromSize(window.contentLayoutRect.size), privacy: .public)")
+                }
+            }
+            return
+        }
         #endif
 
         if !PermissionService.hasScreenCaptureAccess {

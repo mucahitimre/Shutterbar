@@ -1,120 +1,243 @@
+import AppKit
 import KeyboardShortcuts
 import MacShotCore
 import SwiftUI
 
-struct SettingsView: View {
-    @ObservedObject var hotkeys: HotkeyManager
+/// Layout shared by every settings pane: a grouped form with a fixed width whose height fits its content,
+/// pinned to the top so it does not drift while the window animates to a new pane's height.
+enum SettingsPane {
+    static let width: CGFloat = 520
+}
+
+private extension View {
+    func settingsPane() -> some View {
+        formStyle(.grouped)
+            .scrollDisabled(true)
+            .frame(width: SettingsPane.width)
+            .fixedSize()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - General
+
+struct GeneralSettingsPane: View {
     @ObservedObject var preferences: Preferences
     @StateObject private var loginItem = LoginItem()
+    @State private var hasScreenRecordingAccess = PermissionService.hasScreenCaptureAccess
     let openOnboarding: () -> Void
 
     var body: some View {
         Form {
-            Section("Shortcuts") {
-                ForEach(HotkeyAction.allCases, id: \.self) { action in
-                    KeyboardShortcuts.Recorder(action.title + ":", name: action.name)
-                    if hotkeys.failures.contains(action) {
-                        HStack {
-                            Label("This shortcut could not be registered with the system.", systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                            Spacer()
-                            Button("Use fallback (\(action.fallback.description))") {
-                                hotkeys.useFallback(for: action)
-                            }
-                        }
+            Section {
+                Toggle("Launch at login", isOn: Binding(
+                    get: { loginItem.isEnabled },
+                    set: { loginItem.setEnabled($0) }
+                ))
+                if loginItem.status == .requiresApproval {
+                    LabeledContent {
+                        Button("Open System Settings…") { loginItem.openSystemSettings() }
+                    } label: {
+                        WarningLabel("Waiting for approval in System Settings > General > Login Items.")
+                    }
+                }
+                if let error = loginItem.lastError {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                Toggle("Play sound", isOn: $preferences.playSound)
+                Toggle(isOn: $preferences.showFloatingThumbnail) {
+                    Text("Show floating thumbnail")
+                    Text("A preview of the capture appears in the corner of the screen.")
+                }
+            }
+
+            Section("Permissions") {
+                LabeledContent {
+                    Button("Open Onboarding…", action: openOnboarding)
+                } label: {
+                    Text("Screen Recording")
+                    PermissionStatus(granted: hasScreenRecordingAccess)
+                }
+            }
+        }
+        .settingsPane()
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            loginItem.refresh()
+            hasScreenRecordingAccess = PermissionService.hasScreenCaptureAccess
+        }
+    }
+}
+
+private struct PermissionStatus: View {
+    let granted: Bool
+
+    var body: some View {
+        Label {
+            Text(granted ? "Allowed" : "Not allowed")
+        } icon: {
+            Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(granted ? .green : .red)
+        }
+    }
+}
+
+// MARK: - Capture
+
+struct CaptureSettingsPane: View {
+    @ObservedObject var preferences: Preferences
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Default mode", selection: $preferences.captureMode) {
+                    ForEach(CaptureMode.allCases, id: \.self) { mode in
+                        Label(mode.title, systemImage: mode.symbol).tag(mode)
+                    }
+                }
+                Picker("Self-timer", selection: $preferences.captureTimer) {
+                    ForEach(CaptureTimer.allCases, id: \.self) { timer in
+                        Text(timer.title).tag(timer)
                     }
                 }
             }
 
-            Section("Selection") {
-                Toggle("Quick capture (capture as soon as the mouse is released)", isOn: $preferences.quickCapture)
-                Text(preferences.quickCapture
-                     ? "After-capture tasks run as soon as the selection is finished."
-                     : "The selection can be moved / resized until Enter. Enter: after-capture tasks, ⌘C: clipboard only.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle("Magnifier (size: mouse wheel in the overlay)", isOn: $preferences.magnifier)
-                Toggle("Window detection: click a highlighted window to select it", isOn: $preferences.windowSnap)
+            Section {
+                Toggle(isOn: $preferences.quickCapture) {
+                    Text("Quick capture")
+                    Text(preferences.quickCapture
+                         ? "After-capture tasks run as soon as you release the mouse."
+                         : "Move or resize the selection, then press Return to run after-capture tasks or ⌘C to copy only.")
+                }
+                Toggle(isOn: $preferences.windowSnap) {
+                    Text("Window detection")
+                    Text("Highlights the window under the pointer; click to select it.")
+                }
+                Toggle(isOn: $preferences.rememberLastSelection) {
+                    Text("Remember last selection")
+                    Text("Shows the previous region when the overlay opens.")
+                }
+                Toggle(isOn: $preferences.magnifier) {
+                    Text("Magnifier")
+                    Text("Scroll in the overlay to change its size.")
+                }
             }
+        }
+        .settingsPane()
+    }
+}
 
-            Section("After capture") {
+// MARK: - After Capture
+
+struct AfterCaptureSettingsPane: View {
+    @ObservedObject var preferences: Preferences
+
+    private var canIncludeFileURL: Bool {
+        preferences.afterCaptureTasks.contains(.saveToFile) && preferences.afterCaptureTasks.contains(.copyToClipboard)
+    }
+
+    var body: some View {
+        Form {
+            Section {
                 ForEach(AfterCaptureTask.ordered, id: \.rawValue) { task in
                     Toggle(task.title, isOn: Binding(
                         get: { preferences.afterCaptureTasks.contains(task) },
                         set: { _ in preferences.toggle(task) }
                     ))
                 }
-                Toggle("Also put the file URL on the clipboard (when saving)", isOn: $preferences.clipboardIncludesFileURL)
-                    .disabled(!preferences.afterCaptureTasks.contains(.saveToFile) || !preferences.afterCaptureTasks.contains(.copyToClipboard))
+            } header: {
+                Text("After a capture")
+            } footer: {
                 if preferences.afterCaptureTasks.isEmpty {
-                    Label("No task selected; captured images are not sent anywhere.", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    WarningLabel("No task selected; captured images are not sent anywhere.")
+                        .font(.callout)
                 }
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Save folder")
-                        Text(SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark).path)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer()
-                    Button("Change…") {
-                        let current = SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark)
-                        if let bookmark = SaveFolder.choose(current: current) {
-                            preferences.saveFolderBookmark = bookmark
+            }
+
+            Section {
+                Toggle(isOn: $preferences.clipboardIncludesFileURL) {
+                    Text("Also put the file URL on the clipboard")
+                    Text("Requires “Save to file” and “Copy to clipboard”.")
+                }
+                .disabled(!canIncludeFileURL)
+            }
+
+            Section("Save Location") {
+                LabeledContent {
+                    HStack {
+                        if preferences.saveFolderBookmark != nil {
+                            Button("Reset to Default") { preferences.saveFolderBookmark = nil }
+                        }
+                        Button("Change…") {
+                            let current = SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark)
+                            if let bookmark = SaveFolder.choose(current: current) {
+                                preferences.saveFolderBookmark = bookmark
+                            }
                         }
                     }
-                    if preferences.saveFolderBookmark != nil {
-                        Button("Reset to default") { preferences.saveFolderBookmark = nil }
-                    }
-                }
-            }
-
-            Section("General") {
-                Toggle("Launch at login", isOn: Binding(
-                    get: { loginItem.isEnabled },
-                    set: { loginItem.setEnabled($0) }
-                ))
-                if loginItem.status == .requiresApproval {
-                    HStack {
-                        Label("Waiting for approval in System Settings > Login Items.", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Spacer()
-                        Button("Open") { loginItem.openSystemSettings() }
-                    }
-                }
-                if let error = loginItem.lastError {
-                    Text(error).font(.caption).foregroundStyle(.red)
-                }
-            }
-
-            Section("Permission") {
-                HStack {
-                    PermissionStatusLabel()
-                    Spacer()
-                    Button("Open onboarding", action: openOnboarding)
+                } label: {
+                    Text("Folder")
+                    Text(SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark).path)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(SaveFolder.displayURL(bookmark: preferences.saveFolderBookmark).path)
                 }
             }
         }
-        .formStyle(.grouped)
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            loginItem.refresh()
-        }
-        .frame(width: 500)
-        .fixedSize()
+        .settingsPane()
     }
 }
 
-private struct PermissionStatusLabel: View {
+// MARK: - Shortcuts
+
+struct ShortcutsSettingsPane: View {
+    @ObservedObject var hotkeys: HotkeyManager
+
     var body: some View {
-        if PermissionService.hasScreenCaptureAccess {
-            Label("Screen Recording permission granted", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        } else {
-            Label("Screen Recording permission missing", systemImage: "xmark.circle.fill")
-                .foregroundStyle(.red)
+        Form {
+            Section {
+                ForEach(HotkeyAction.allCases, id: \.self) { action in
+                    KeyboardShortcuts.Recorder(action.title, name: action.name)
+                    if hotkeys.failures.contains(action) {
+                        LabeledContent {
+                            Button("Use Fallback (\(action.fallback.description))") {
+                                hotkeys.useFallback(for: action)
+                            }
+                        } label: {
+                            WarningLabel("This shortcut could not be registered with the system.")
+                        }
+                    }
+                }
+            } footer: {
+                Text("Shortcuts work in any app while \(AppInfo.name) is running.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .settingsPane()
+    }
+}
+
+// MARK: - Shared
+
+/// The system warning glyph (multicolor, like System Settings) followed by text.
+private struct WarningLabel: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Label {
+            Text(text)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .symbolRenderingMode(.multicolor)
         }
     }
 }

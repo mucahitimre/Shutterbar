@@ -10,6 +10,7 @@ final class CaptureOutput: AfterCaptureActions {
     private var warnedNoTasks = false
     /// Open editors; retained until they close.
     private var editors: [EditorWindowController] = []
+    private var thumbnail: ThumbnailPanel?
 
     init(preferences: Preferences = .shared) {
         self.preferences = preferences
@@ -27,6 +28,16 @@ final class CaptureOutput: AfterCaptureActions {
             run(tasks, images: images)
             return
         }
+        openEditor(image) { [weak self] result in
+            switch result {
+            case .done(let edited): self?.run(tasks, images: [edited])
+            case .copyOnly(let edited): self?.copyOnly([edited])
+            case .cancelled: Log.output.info("Editor cancelled; image discarded")
+            }
+        }
+    }
+
+    private func openEditor(_ image: CGImage, completion: @escaping (EditorWindowController.Result) -> Void) {
         let editor = EditorWindowController(image: image)
         editors.append(editor)
         Task {
@@ -39,31 +50,74 @@ final class CaptureOutput: AfterCaptureActions {
             #endif
             let result = await editor.run()
             editors.removeAll { $0 === editor }
-            switch result {
-            case .done(let edited):
-                run(tasks, images: [edited])
-            case .copyOnly(let edited):
-                copyOnly([edited])
-            case .cancelled:
-                Log.output.info("Editor cancelled; image discarded")
-            }
+            completion(result)
         }
     }
 
     private func run(_ tasks: AfterCaptureTask, images: [CGImage]) {
-        guard let report = AfterCaptureRunner.run(tasks, images: images, actions: self) else {
-            Log.output.info("No after-capture task selected; image discarded")
+        let report = AfterCaptureRunner.run(tasks, images: images, actions: self)
+        if report == nil {
+            Log.output.info("No after-capture task selected; only the thumbnail is shown")
             warnNoTasksOnce()
-            return
-        }
-        if report.skipped.contains(.revealInFinder) {
+        } else if report?.skipped.contains(.revealInFinder) == true {
             Log.output.info("Show in Finder skipped: no saved file")
+        }
+        if let image = images.last {
+            showThumbnail(image, fileURL: report?.savedURLs.last, tasks: tasks)
         }
     }
 
     /// ⌘C: clipboard only; notifies on failure.
     func copyOnly(_ images: [CGImage]) {
         AfterCaptureRunner.run(.copyToClipboard, images: images, actions: self)
+        if let image = images.last {
+            showThumbnail(image, fileURL: nil, tasks: .copyToClipboard)
+        }
+    }
+
+    // MARK: Floating thumbnail
+
+    private func showThumbnail(_ image: CGImage, fileURL: URL?, tasks: AfterCaptureTask) {
+        guard preferences.showFloatingThumbnail else { return }
+        thumbnail?.dismiss()
+        let panel = ThumbnailPanel(image: image, fileURL: fileURL, actions: .init(
+            edit: { [weak self] in self?.reedit(image, fileURL: fileURL, tasks: tasks) },
+            showInFinder: fileURL.map { url in { NSWorkspace.shared.activateFileViewerSelecting([url]) } },
+            copy: { [weak self] in
+                guard let self else { return }
+                try? Clipboard.write([image], fileURLs: self.preferences.clipboardIncludesFileURL ? (fileURL.map { [$0] } ?? []) : [])
+                Log.output.info("Thumbnail copied to clipboard")
+            }
+        ))
+        thumbnail = panel
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
+        guard let screen else { return }
+        panel.present(on: screen) { [weak self, weak panel] in
+            if self?.thumbnail === panel { self?.thumbnail = nil }
+        }
+    }
+
+    /// Editing from the thumbnail: the saved file is replaced, the clipboard / notification run again.
+    private func reedit(_ image: CGImage, fileURL: URL?, tasks: AfterCaptureTask) {
+        openEditor(image) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .done(let edited):
+                if let fileURL {
+                    do {
+                        try PNGEncoder.write(edited, to: fileURL, overwrite: true)
+                        Log.output.info("Replaced with edited image: \(fileURL.path, privacy: .public)")
+                    } catch {
+                        Log.output.error("Could not replace \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    }
+                }
+                AfterCaptureRunner.run(tasks.intersection([.copyToClipboard, .showNotification]), images: [edited], actions: self)
+            case .copyOnly(let edited):
+                AfterCaptureRunner.run(.copyToClipboard, images: [edited], actions: self)
+            case .cancelled:
+                break
+            }
+        }
     }
 
     // MARK: AfterCaptureActions

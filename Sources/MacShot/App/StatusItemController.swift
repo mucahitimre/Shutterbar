@@ -7,6 +7,7 @@ final class StatusItemController: NSObject {
     struct Actions {
         var captureRegion: () -> Void
         var captureLastRegion: () -> Void
+        var captureScrolling: () -> Void
         var openSettings: () -> Void
     }
 
@@ -37,6 +38,10 @@ final class StatusItemController: NSObject {
                         action: #selector(captureLastRegion))
         last.setShortcut(for: .captureLastRegion)
         menu.addItem(last)
+
+        let scrolling = item("Capture Scrolling Region", symbol: "scroll", action: #selector(captureScrolling))
+        scrolling.setShortcut(for: .captureScrolling)
+        menu.addItem(scrolling)
 
         for task in AfterCaptureTask.ordered {
             let taskItem = NSMenuItem(title: Self.menuTitle(for: task), action: #selector(toggleTask(_:)), keyEquivalent: "")
@@ -88,6 +93,7 @@ final class StatusItemController: NSObject {
 
     @objc private func captureRegion() { actions.captureRegion() }
     @objc private func captureLastRegion() { actions.captureLastRegion() }
+    @objc private func captureScrolling() { actions.captureScrolling() }
     @objc private func openSettings() { actions.openSettings() }
 
     @objc private func showAbout() {

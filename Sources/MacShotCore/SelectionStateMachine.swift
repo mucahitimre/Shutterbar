@@ -74,7 +74,7 @@ public struct SelectionStateMachine: Sendable {
             selection = nil
             pickedWindow = nil
             phase = .idle
-            if mode != .selection { preview = nil }
+            if !mode.selectsRegion { preview = nil }
             updateHover()
         }
     }
@@ -120,7 +120,7 @@ public struct SelectionStateMachine: Sendable {
         self.modifiers = modifiers
 
         // Window and screen modes only react to clicks (on mouse up).
-        guard mode == .selection else { return .none }
+        guard mode.selectsRegion else { return .none }
 
         if !quickCapture, let selection {
             if clickCount >= 2, selection.contains(point) {
@@ -169,7 +169,7 @@ public struct SelectionStateMachine: Sendable {
 
     public mutating func mouseUp(at point: CGPoint) -> Output {
         switch mode {
-        case .selection:
+        case .selection, .scrolling:
             break
         case .window:
             cursor = CaptureGeometry.clamp(point, to: bounds)
@@ -314,7 +314,7 @@ public struct SelectionStateMachine: Sendable {
     private mutating func acceptRect() -> CGRect? {
         guard phase == .idle else { return nil }
         switch mode {
-        case .selection:
+        case .selection, .scrolling:
             return selection ?? preview
         case .window, .screen:
             // Whole windows and screens are marked as picked so they don't replace the last region.
@@ -336,7 +336,7 @@ public struct SelectionStateMachine: Sendable {
     /// Highlight only when there is no selection and the mouse is idle.
     private mutating func updateHover() {
         switch mode {
-        case .selection:
+        case .selection, .scrolling:
             guard selection == nil, phase == .idle else { return }
             hoveredWindow = snapsWindowsInSelection ? WindowSnap.window(at: cursor, in: windowRects) : nil
         case .window:

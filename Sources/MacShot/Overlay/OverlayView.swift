@@ -123,7 +123,7 @@ final class OverlayView: NSView {
 
     /// Camera for window / screen mode (as in macOS), crosshair for selections.
     private var currentCursor: NSCursor {
-        machine.mode == .selection ? .crosshair : .camera
+        machine.mode.selectsRegion ? .crosshair : .camera
     }
 
     // MARK: External
@@ -344,7 +344,7 @@ final class OverlayView: NSView {
             borderLayer.path = CGPath(rect: selection.insetBy(dx: -0.5, dy: -0.5), transform: nil)
             borderLayer.isHidden = false
 
-            let showHandles = !machine.quickCapture && machine.phase == .idle && machine.mode == .selection
+            let showHandles = !machine.quickCapture && machine.phase == .idle && machine.mode.selectsRegion
             if showHandles {
                 let handles = CGMutablePath()
                 for handle in SelectionStateMachine.Handle.allCases {
@@ -360,7 +360,7 @@ final class OverlayView: NSView {
         }
 
         // Pixel size below the selection, centered (above it when there is no room).
-        if let measured = selection ?? hovered, machine.mode == .selection || hovered != nil {
+        if let measured = selection ?? hovered, machine.mode.selectsRegion || hovered != nil {
             let px = CaptureGeometry.pixelRect(
                 forPointRect: measured,
                 scale: snapshot.scale,
@@ -395,7 +395,7 @@ final class OverlayView: NSView {
         var origin = CGPoint(x: cursor.x + gap, y: cursor.y + gap)
         if origin.x + block.width > bounds.width { origin.x = cursor.x - gap - block.width }
         if origin.y + block.height > bounds.height { origin.y = cursor.y - gap - block.height }
-        let showsTools = machine.mode == .selection
+        let showsTools = machine.mode.selectsRegion
         if let magnifier {
             let visible = showsTools && magnifierEnabled
             if visible {

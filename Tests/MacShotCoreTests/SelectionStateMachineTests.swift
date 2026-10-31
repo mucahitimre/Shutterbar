@@ -352,4 +352,14 @@ struct SelectionStateMachineTests {
         _ = sm.mouseUp(at: CGPoint(x: 150, y: 150))
         #expect(sm.selection == nil)
     }
+
+    @Test func scrollingModeSelectsLikeSelection() {
+        var sm = machine(quick: false)
+        sm.mode = .scrolling
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        #expect(sm.mouseUp(at: CGPoint(x: 110, y: 210)) == .none)
+        #expect(sm.key(.enter) == .capture(CGRect(x: 10, y: 10, width: 100, height: 200)))
+        #expect(CaptureMode.scrolling.selectsRegion)
+        #expect(!CaptureMode.window.selectsRegion)
+    }
 }

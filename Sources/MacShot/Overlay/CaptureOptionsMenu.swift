@@ -45,7 +45,7 @@ enum CaptureOptionsMenu {
             ("Quick Capture", \.quickCapture),
             ("Detect Windows in Selection Mode", \.windowSnap),
             ("Play Sound", \.playSound),
-        ]
+        ] + (AutoScrollPermission.isAvailable ? [("Scroll Automatically in Scrolling Capture", \Preferences.autoScroll)] : [])
         for (title, keyPath) in toggles {
             menu.addItem(ActionMenuItem(title, checked: preferences[keyPath: keyPath]) {
                 preferences[keyPath: keyPath].toggle()

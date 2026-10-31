@@ -6,7 +6,7 @@
 
 | Requirement | Status |
 |---|---|
-| App Sandbox | ✅ On, four standard entitlements (pictures, user-selected files, app-scoped bookmarks) — no temporary exceptions |
+| App Sandbox | ✅ The `AppStore` configuration is sandboxed with four standard entitlements (pictures, user-selected files, app-scoped bookmarks) — no temporary exceptions. (The GitHub build is not sandboxed, for automatic scrolling.) |
 | Public APIs only | ✅ ScreenCaptureKit, Carbon `RegisterEventHotKey` (via KeyboardShortcuts, used by many App Store apps), `CGWindowListCopyWindowInfo`, `SMAppService`, UserNotifications |
 | Hardened runtime | ✅ (not required for the App Store, harmless) |
 | Screen Recording | ✅ Requested through the system prompt with an onboarding explanation; no workaround APIs |
@@ -34,6 +34,8 @@
 3. Optional: `PRIVACY.md` in the repository to serve as the privacy policy.
 
 ## Things to know
+
+- **No automatic scrolling in the App Store build:** measured on macOS 27 — a sandboxed MacShot cannot be added to Privacy & Security › Device Control & Data Access (Accessibility); the App Store build hides the option and keeps manual scrolling. Export the `AppStore` configuration for the store.
 
 - **App Review** may ask how screen content is used; the answer is: captured locally on user action, saved/copied only where the user chooses, never transmitted.
 - **Two channels, two signatures:** the App Store build and the Developer ID build are signed differently, so macOS treats them as different apps for the Screen Recording permission. Users should install only one of them.

@@ -25,6 +25,7 @@ struct GeneralSettingsPane: View {
     @ObservedObject var preferences: Preferences
     @StateObject private var loginItem = LoginItem()
     @State private var hasScreenRecordingAccess = PermissionService.hasScreenCaptureAccess
+    @State private var hasAccessibilityAccess = AutoScrollPermission.isGranted
     let openOnboarding: () -> Void
 
     var body: some View {
@@ -63,12 +64,24 @@ struct GeneralSettingsPane: View {
                     Text("Screen Recording")
                     PermissionStatus(granted: hasScreenRecordingAccess)
                 }
+                if AutoScrollPermission.isAvailable {
+                    LabeledContent {
+                        if !hasAccessibilityAccess {
+                            Button("Allow…") { AutoScrollPermission.request() }
+                        }
+                    } label: {
+                        Text("Accessibility")
+                        Text("Optional: lets scrolling capture scroll by itself.")
+                        PermissionStatus(granted: hasAccessibilityAccess)
+                    }
+                }
             }
         }
         .settingsPane()
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             loginItem.refresh()
             hasScreenRecordingAccess = PermissionService.hasScreenCaptureAccess
+            hasAccessibilityAccess = AutoScrollPermission.isGranted
         }
     }
 }
@@ -124,6 +137,19 @@ struct CaptureSettingsPane: View {
                 Toggle(isOn: $preferences.magnifier) {
                     Text("Magnifier")
                     Text("Scroll in the overlay to change its size.")
+                }
+            }
+
+            if AutoScrollPermission.isAvailable {
+                Section {
+                    Toggle(isOn: $preferences.autoScroll) {
+                        Text("Scroll automatically")
+                        Text(AutoScrollPermission.isGranted
+                             ? "Scrolling capture scrolls the page by itself and stops at the end."
+                             : "Needs the Accessibility permission (General › Permissions). Without it you scroll yourself.")
+                    }
+                } header: {
+                    Text("Scrolling Capture")
                 }
             }
         }

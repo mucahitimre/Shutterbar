@@ -19,6 +19,7 @@ final class Preferences: ObservableObject {
         static let showFloatingThumbnail = "showFloatingThumbnail"
         static let rememberLastSelection = "rememberLastSelection"
         static let playSound = "playSound"
+        static let autoScroll = "autoScroll"
     }
 
     private let defaults: UserDefaults
@@ -76,6 +77,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(playSound, forKey: Key.playSound) }
     }
 
+    /// Scrolling capture scrolls by itself when the Accessibility permission is granted (GitHub build only).
+    @Published var autoScroll: Bool {
+        didSet { defaults.set(autoScroll, forKey: Key.autoScroll) }
+    }
+
     /// Security-scoped bookmark of the folder the user chose; if nil, the default folder.
     @Published var saveFolderBookmark: Data? {
         didSet { defaults.set(saveFolderBookmark, forKey: Key.saveFolderBookmark) }
@@ -95,6 +101,7 @@ final class Preferences: ObservableObject {
             Key.showFloatingThumbnail: true,
             Key.rememberLastSelection: true,
             Key.playSound: true,
+            Key.autoScroll: true,
         ])
         afterCaptureTasks = AfterCaptureTask(rawValue: defaults.integer(forKey: Key.afterCaptureTasks))
         quickCapture = defaults.bool(forKey: Key.quickCapture)
@@ -107,6 +114,7 @@ final class Preferences: ObservableObject {
         showFloatingThumbnail = defaults.bool(forKey: Key.showFloatingThumbnail)
         rememberLastSelection = defaults.bool(forKey: Key.rememberLastSelection)
         playSound = defaults.bool(forKey: Key.playSound)
+        autoScroll = defaults.bool(forKey: Key.autoScroll)
         saveFolderBookmark = defaults.data(forKey: Key.saveFolderBookmark)
     }
 

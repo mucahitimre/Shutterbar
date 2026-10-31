@@ -51,4 +51,16 @@ struct ImageCropperTests {
         #expect(decoded.height == 17)
         #expect(throws: (any Error).self) { try PNGEncoder.write(image, to: url) } // does not overwrite
     }
+
+    @Test func pngOverwriteReplacesExistingFile() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("overwrite-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let small = makeImage(width: 4, height: 4)
+        let large = makeImage(width: 8, height: 8)
+        try PNGEncoder.write(small, to: url)
+        #expect(throws: (any Error).self) { try PNGEncoder.write(large, to: url) }
+        try PNGEncoder.write(large, to: url, overwrite: true)
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil)?.width == 8)
+    }
 }

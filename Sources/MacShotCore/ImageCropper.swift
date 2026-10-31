@@ -34,9 +34,9 @@ public enum PNGEncoder {
     }
 
     /// Writes a PNG, creating the folder if needed.
-    public static func write(_ image: CGImage, to url: URL) throws {
+    public static func write(_ image: CGImage, to url: URL, overwrite: Bool = false) throws {
         let data = try data(from: image)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: url, options: .withoutOverwriting)
+        try data.write(to: url, options: overwrite ? .atomic : .withoutOverwriting)
     }
 }

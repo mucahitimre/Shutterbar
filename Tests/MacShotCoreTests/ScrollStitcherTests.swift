@@ -29,8 +29,11 @@ fileprivate struct Page {
     func footer(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) { (10, UInt8(60 + y), UInt8((x * 2) % 200)) }
 
     /// The frame visible at scroll offset `s`. `noise` changes the trailing 8 columns (an overlay scroll bar).
-    func frame(at s: Int, noise: UInt8 = 0) -> CGImage {
-        makeImage(width: Page.width, height: viewport) { x, y in
+    /// `sidebar`: a static column band on the left (navigation that doesn't scroll), as in a whole-window selection.
+    func frame(at s: Int, noise: UInt8 = 0, sidebar: Int = 0) -> CGImage {
+        makeImage(width: Page.width + sidebar, height: viewport) { x, y in
+            if x < sidebar { return (UInt8(30 + (y * 7) % 90), UInt8(x * 3), 90) }
+            let x = x - sidebar
             if x >= Page.width - 8 { return (noise, noise, noise) }
             if y < header { return self.header(x, y) }
             if y >= viewport - footer { return self.footer(x, y - (viewport - footer)) }
@@ -168,5 +171,43 @@ struct ScrollStitcherTests {
         let a = try #require(RowSignatures(image: page.frame(at: 840), excludingTrailing: 8))
         let b = try #require(RowSignatures(image: page.frame(at: 950), excludingTrailing: 8))
         #expect(ScrollStitcher.offset(from: a, to: b, top: page.header, bottom: page.footer) == nil)
+    }
+
+    @Test func staticSidebarDoesNotBreakStitching() throws {
+        // Reproduces a whole-window selection: a fixed sidebar on the left, only the content scrolls.
+        var capture = ScrollingCapture(excludedTrailingColumns: 8)
+        let sidebar = 40
+        let scrolls = [0, 50, 120, 200, 260]
+        var results: [ScrollingCapture.AddResult] = []
+        for (i, s) in scrolls.enumerated() {
+            results.append(capture.add(page.frame(at: s, noise: UInt8(i * 30), sidebar: sidebar)))
+        }
+        #expect(!results.contains(.lost))
+        let image = try #require(capture.makeImage())
+        // The output is the scrolling band only (the sidebar would otherwise repeat down the image).
+        #expect(image.width == Page.width)
+        #expect(sameIgnoringTrailing(image, page.expected(lastScroll: 260), trailing: 8))
+    }
+
+    @Test func flatMarginsStayInTheScrollingBand() throws {
+        // A plain white margin does not change while scrolling, but it is not content: keep it (wider content may come).
+        let a = try #require(PixelBuffer(image: makeImage(width: 100, height: 60) { x, y in
+            x < 20 ? (255, 255, 255) : (UInt8((x * 7 + y * 13) % 251), UInt8(y % 251), 40)
+        }))
+        let b = try #require(PixelBuffer(image: makeImage(width: 100, height: 60) { x, y in
+            x < 20 ? (255, 255, 255) : (UInt8((x * 7 + (y + 5) * 13) % 251), UInt8((y + 5) % 251), 40)
+        }))
+        #expect(ScrollStitcher.scrollingColumns(a, b) == 0..<100)
+    }
+
+    @Test func staticContentColumnsAreExcluded() throws {
+        let sidebar: (Int, Int) -> (UInt8, UInt8, UInt8) = { x, y in (UInt8((x * 9 + y * 5) % 251), 10, 200) }
+        let a = try #require(PixelBuffer(image: makeImage(width: 100, height: 60) { x, y in
+            x < 30 ? sidebar(x, y) : (UInt8((x * 7 + y * 13) % 251), UInt8(y % 251), 40)
+        }))
+        let b = try #require(PixelBuffer(image: makeImage(width: 100, height: 60) { x, y in
+            x < 30 ? sidebar(x, y) : (UInt8((x * 7 + (y + 5) * 13) % 251), UInt8((y + 5) % 251), 40)
+        }))
+        #expect(ScrollStitcher.scrollingColumns(a, b) == 30..<100)
     }
 }

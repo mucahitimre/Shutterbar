@@ -51,7 +51,7 @@ Shortcuts can be changed in Settings. The overlay opens with a toolbar at the bo
 
 After a capture a thumbnail appears in the bottom-right corner for a few seconds: click it to annotate (the saved file is replaced), drag it into another app, swipe right to dismiss, or right-click for more.
 
-**Scrolling capture** (toolbar mode, menu > Capture Scrolling Region, or a shortcut you assign in Settings): select the area to capture — for example the content part of a browser window — and press Capture. A dashed frame marks the area; scroll down slowly inside it while MacShot captures and stitches the frames, then click **Done** in the panel below the frame. Sticky headers and footers are kept once, and the overlay scroll bar is ignored when matching. If you scroll too far at once the panel asks you to scroll back a little. No extra permission is needed because you do the scrolling yourself.
+**Scrolling capture** (toolbar mode, menu > Capture Scrolling Region, or a shortcut you assign in Settings): select the area to capture — for example the content part of a browser window — and press Capture. A dashed frame marks the area; scroll down slowly inside it while MacShot captures and stitches the frames, then click **Done** in the panel below the frame. Sticky headers and footers are kept once, a fixed sidebar is left out (the result is cropped to the part that scrolls), and the overlay scroll bar is ignored when matching. If you scroll too far at once the panel asks you to scroll back a little. No extra permission is needed because you do the scrolling yourself.
 
 Keys inside the overlay:
 

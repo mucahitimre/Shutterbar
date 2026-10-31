@@ -65,7 +65,9 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 - [ ] Scrolling too fast shows the warning; scrolling back recovers
 - [ ] Done delivers the image (thumbnail, save, clipboard); ⌘C in scrolling mode → clipboard only; Cancel discards
 - [ ] Frame and HUD are not in the result
-- [ ] `-MacShotRegionSelfTest` (Debug): region capture matches the crop (same-rect diff near 0, shifted diff clearly larger) — first run hit a locked screen (ScreenCaptureKit returns no displays while locked); to be re-run unlocked
+- [x] `-MacShotRegionSelfTest` (Debug): region capture matches the crop — same rect mean diff 0.0, 40 pt shifted 48.4 (first run hit a locked screen: ScreenCaptureKit returns no displays while locked) — Claude, 2026-10-31
+- [x] Whole-window selection with a fixed sidebar (owner's first try returned a single frame): fixed by matching only the scrolling column band; replayed with frames built from the owner's Analytics screenshot — 7/7 frames appended, seamless 756×1200 result — Claude, 2026-10-31
+- [ ] Owner re-test of the whole-window case
 - [x] Stitching algorithm unit-tested with a synthetic page (sticky bands, scroll-bar noise, blank blocks, lost frames, maximum height) — Claude, 2026-10-31
 
 ## Release package (per release)

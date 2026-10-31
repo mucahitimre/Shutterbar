@@ -45,9 +45,15 @@ final class ScrollingSession {
             hud.orderOut(nil)
         }
 
+        var counts: [String: Int] = [:]
+        defer {
+            Log.capture.info("Scrolling session frames: \(counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "), privacy: .public)")
+        }
         while finishRequested == nil {
             let frame = try await capturer.capture()
-            switch stitch.add(frame) {
+            let result = stitch.add(frame)
+            counts[Self.name(result), default: 0] += 1
+            switch result {
             case .first:
                 hud.update(status: "Scroll down slowly inside the frame", height: stitch.height)
             case .appended:
@@ -64,8 +70,21 @@ final class ScrollingSession {
         }
 
         guard finishRequested == true, let image = stitch.makeImage() else { return .cancelled }
+        if stitch.height == image.height, counts["appended", default: 0] == 0 {
+            Log.capture.notice("Scrolling capture: no scroll was detected; the result is a single frame")
+        }
         Log.capture.info("Scrolling capture: \(image.width)×\(image.height) px")
         return .done(image)
+    }
+
+    private static func name(_ result: ScrollingCapture.AddResult) -> String {
+        switch result {
+        case .first: "first"
+        case .appended: "appended"
+        case .unchanged: "unchanged"
+        case .lost: "lost"
+        case .full: "full"
+        }
     }
 }
 

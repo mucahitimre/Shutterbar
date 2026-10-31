@@ -1,21 +1,13 @@
 import CoreGraphics
 import Foundation
 
-/// Per-row fingerprints of one frame. Rows are top to bottom.
-public struct RowSignatures: Equatable, Sendable {
-    public let hashes: [UInt64]
-    /// Rows with visible content (not a single flat color). Flat rows match anywhere, so they are ignored when matching.
-    public let informative: [Bool]
+/// RGBA8 pixels of one frame, top row first.
+public struct PixelBuffer: Sendable {
+    public let width: Int
+    public let height: Int
+    public let bytes: [UInt8]
 
-    public var count: Int { hashes.count }
-
-    public init(hashes: [UInt64], informative: [Bool]) {
-        self.hashes = hashes
-        self.informative = informative
-    }
-
-    /// - Parameter excludingTrailing: pixels ignored at the right edge (the overlay scroll bar appears there while scrolling).
-    public init?(image: CGImage, excludingTrailing: Int = 0) {
+    public init?(image: CGImage) {
         let width = image.width, height = image.height
         guard width > 0, height > 0 else { return nil }
         var buffer = [UInt8](repeating: 0, count: width * height * 4)
@@ -28,19 +20,42 @@ public struct RowSignatures: Equatable, Sendable {
             return true
         }
         guard drawn else { return nil }
+        self.width = width
+        self.height = height
+        bytes = buffer
+    }
 
-        let columns = max(1, width - max(0, excludingTrailing))
-        var hashes = [UInt64](repeating: 0, count: height)
-        var informative = [Bool](repeating: false, count: height)
-        for y in 0..<height {
+    /// Color with the low bits dropped, so tiny rendering differences don't count as changes.
+    @inline(__always)
+    func quantized(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) {
+        let i = (y * width + x) * 4
+        return (bytes[i] >> 3, bytes[i + 1] >> 3, bytes[i + 2] >> 3)
+    }
+}
+
+/// Per-row fingerprints of one frame over a column band. Rows are top to bottom.
+public struct RowSignatures: Equatable, Sendable {
+    public let hashes: [UInt64]
+    /// Rows with visible content (not a single flat color). Flat rows match anywhere, so they are ignored when matching.
+    public let informative: [Bool]
+
+    public var count: Int { hashes.count }
+
+    public init(hashes: [UInt64], informative: [Bool]) {
+        self.hashes = hashes
+        self.informative = informative
+    }
+
+    public init(buffer: PixelBuffer, columns: Range<Int>) {
+        let columns = columns.clamped(to: 0..<buffer.width)
+        var hashes = [UInt64](repeating: 0, count: buffer.height)
+        var informative = [Bool](repeating: false, count: buffer.height)
+        for y in 0..<buffer.height {
             var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-            let rowStart = y * width * 4
-            // Drop the low bits so tiny rendering differences don't break a match.
-            let first = (buffer[rowStart] >> 3, buffer[rowStart + 1] >> 3, buffer[rowStart + 2] >> 3)
+            let first = columns.isEmpty ? (0, 0, 0) : buffer.quantized(columns.lowerBound, y)
             var flat = true
-            for x in 0..<columns {
-                let i = rowStart + x * 4
-                let r = buffer[i] >> 3, g = buffer[i + 1] >> 3, b = buffer[i + 2] >> 3
+            for x in columns {
+                let (r, g, b) = buffer.quantized(x, y)
                 if flat, (r, g, b) != first { flat = false }
                 for byte in [r, g, b] {
                     hash ^= UInt64(byte)
@@ -53,9 +68,46 @@ public struct RowSignatures: Equatable, Sendable {
         self.hashes = hashes
         self.informative = informative
     }
+
+    /// - Parameter excludingTrailing: pixels ignored at the right edge (the overlay scroll bar appears there while scrolling).
+    public init?(image: CGImage, excludingTrailing: Int = 0) {
+        guard let buffer = PixelBuffer(image: image) else { return nil }
+        self.init(buffer: buffer, columns: 0..<max(1, buffer.width - max(0, excludingTrailing)))
+    }
 }
 
 public enum ScrollStitcher {
+    /// The columns that scroll: the longest run of columns that are not *static content* (identical in both frames
+    /// and not a flat color — e.g. a fixed sidebar). Flat columns (page margins) stay in, since they may hold wider
+    /// content further down. Falls back to the full width when the run would be implausibly narrow.
+    public static func scrollingColumns(_ a: PixelBuffer, _ b: PixelBuffer, minimumFraction: Double = 0.2) -> Range<Int> {
+        let full = 0..<a.width
+        guard a.width == b.width, a.height == b.height else { return full }
+        var bestStart = 0, bestLength = 0, runStart = 0
+        for x in 0...a.width {
+            let isStatic: Bool
+            if x == a.width {
+                isStatic = true
+            } else {
+                var identical = true, flat = true
+                let top = a.quantized(x, 0)
+                for y in 0..<a.height {
+                    let pa = a.quantized(x, y)
+                    if identical, pa != b.quantized(x, y) { identical = false }
+                    if flat, pa != top { flat = false }
+                    if !identical, !flat { break }
+                }
+                isStatic = identical && !flat
+            }
+            if isStatic {
+                if x - runStart > bestLength { bestStart = runStart; bestLength = x - runStart }
+                runStart = x + 1
+            }
+        }
+        guard Double(bestLength) >= Double(a.width) * minimumFraction else { return full }
+        return bestStart..<(bestStart + bestLength)
+    }
+
     /// Fixed bands at the top and bottom (sticky headers / footers): rows identical at the same position in both frames.
     /// Only counted while the middle still changes, so an unchanged frame doesn't become "all static".
     public static func staticBands(_ a: RowSignatures, _ b: RowSignatures) -> (top: Int, bottom: Int) {
@@ -127,7 +179,9 @@ public struct ScrollingCapture: Sendable {
 
     private var firstFrame: CGImage?
     private var lastFrame: CGImage?
-    private var lastSignatures: RowSignatures?
+    private var lastBuffer: PixelBuffer?
+    /// Fixed from the first pair of frames that differ.
+    private var columns: Range<Int>?
     private var bands: (top: Int, bottom: Int)?
     private var pieces: [Piece] = []
     public private(set) var contentHeight = 0
@@ -143,12 +197,18 @@ public struct ScrollingCapture: Sendable {
         return bands.top + contentHeight + bands.bottom
     }
 
+    /// Columns used for matching: the scrolling band minus the scroll-bar strip at its right edge.
+    private func matchColumns(_ band: Range<Int>) -> Range<Int> {
+        let trimmed = band.lowerBound..<max(band.lowerBound + 1, band.upperBound - excludedTrailingColumns)
+        return trimmed
+    }
+
     public mutating func add(_ frame: CGImage) -> AddResult {
-        guard let signatures = RowSignatures(image: frame, excludingTrailing: excludedTrailingColumns) else { return .lost }
-        guard let previous = lastSignatures, let first = firstFrame else {
+        guard let buffer = PixelBuffer(image: frame) else { return .lost }
+        guard let previous = lastBuffer, let first = firstFrame else {
             firstFrame = frame
             lastFrame = frame
-            lastSignatures = signatures
+            lastBuffer = buffer
             pieces = [Piece(image: frame, rows: 0..<frame.height)]
             contentHeight = frame.height
             return .first
@@ -156,15 +216,18 @@ public struct ScrollingCapture: Sendable {
         guard frame.width == first.width, frame.height == first.height else { return .lost }
         if height >= maximumHeight { return .full }
 
-        // Sticky bands are fixed from the first pair of frames that differ.
-        let bands = self.bands ?? ScrollStitcher.staticBands(previous, signatures)
-        guard let dy = ScrollStitcher.offset(from: previous, to: signatures, top: bands.top, bottom: bands.bottom) else {
+        let band = columns ?? ScrollStitcher.scrollingColumns(previous, buffer)
+        let previousSignatures = RowSignatures(buffer: previous, columns: matchColumns(band))
+        let signatures = RowSignatures(buffer: buffer, columns: matchColumns(band))
+        let bands = self.bands ?? ScrollStitcher.staticBands(previousSignatures, signatures)
+        guard let dy = ScrollStitcher.offset(from: previousSignatures, to: signatures, top: bands.top, bottom: bands.bottom) else {
             return .lost
         }
         guard dy > 0 else { return .unchanged }
 
         if self.bands == nil {
-            // Trim the first frame to the scrolling content now that the bands are known.
+            // First real scroll: fix the column band and sticky bands, trim the first frame to the scrolling content.
+            columns = band
             self.bands = bands
             pieces = [Piece(image: first, rows: bands.top..<(first.height - bands.bottom))]
             contentHeight = first.height - bands.top - bands.bottom
@@ -173,15 +236,16 @@ public struct ScrollingCapture: Sendable {
         pieces.append(Piece(image: frame, rows: (end - dy)..<end))
         contentHeight += dy
         lastFrame = frame
-        lastSignatures = signatures
+        lastBuffer = buffer
         return .appended(dy)
     }
 
-    /// Header from the first frame + scrolled content + footer from the last frame.
+    /// Header from the first frame + scrolled content + footer from the last frame, cropped to the scrolling columns
+    /// (a fixed sidebar would otherwise repeat down the image).
     public func makeImage() -> CGImage? {
         guard let first = firstFrame, let last = lastFrame else { return nil }
-        guard let bands else { return first }
-        let width = first.width
+        guard let bands, let columns else { return first }
+        let width = columns.count
         let total = bands.top + contentHeight + bands.bottom
         guard let context = CGContext(
             data: nil, width: width, height: total, bitsPerComponent: 8, bytesPerRow: 0,
@@ -191,7 +255,8 @@ public struct ScrollingCapture: Sendable {
 
         var y = 0 // top-left based destination row
         func draw(_ image: CGImage, rows: Range<Int>) {
-            guard !rows.isEmpty, let slice = image.cropping(to: CGRect(x: 0, y: rows.lowerBound, width: width, height: rows.count)) else { return }
+            let source = CGRect(x: columns.lowerBound, y: rows.lowerBound, width: width, height: rows.count)
+            guard !rows.isEmpty, let slice = image.cropping(to: source) else { return }
             // CGContext is bottom-left based.
             context.draw(slice, in: CGRect(x: 0, y: total - y - rows.count, width: width, height: rows.count))
             y += rows.count

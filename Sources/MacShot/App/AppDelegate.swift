@@ -45,9 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         Log.app.info("Tetiklendi: \(action.title, privacy: .public)")
         switch action {
-        case .region, .lastRegion:
-            // F3'e kadar last region da overlay'i açar (R3.5).
-            capture.captureRegion()
+        case .region: capture.captureRegion()
+        case .lastRegion: capture.captureLastRegion()
         }
     }
 }

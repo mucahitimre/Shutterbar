@@ -24,6 +24,7 @@ final class OverlayView: NSView {
     private let handlesLayer = CAShapeLayer()
     private let sizeLabel = OverlayView.makeLabel()
     private let cursorLabel = OverlayView.makeLabel()
+    private let hudLabel = OverlayView.makeLabel(fontSize: 14)
 
     init(snapshot: DisplaySnapshot, quickCapture: Bool, preview: CGRect?) {
         self.snapshot = snapshot
@@ -74,6 +75,7 @@ final class OverlayView: NSView {
         addSubview(overlay)
         addSubview(sizeLabel)
         addSubview(cursorLabel)
+        addSubview(hudLabel)
 
         updateTrackingAreas()
         refresh()
@@ -109,6 +111,21 @@ final class OverlayView: NSView {
     func resetSelection() {
         machine.reset()
         refresh()
+    }
+
+    /// Ekranın üst ortasında kısa süreli bilgi metni (R3.4).
+    func showHUD(_ text: String, duration: TimeInterval = 2.5) {
+        hudLabel.stringValue = text
+        hudLabel.sizeToFit()
+        hudLabel.setFrameOrigin(CGPoint(x: (bounds.width - hudLabel.frame.width) / 2, y: 60))
+        hudLabel.alphaValue = 1
+        hudLabel.isHidden = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                self?.hudLabel.animator().alphaValue = 0
+            }
+        }
     }
 
     func updateCursor(fromGlobal location: CGPoint) {
@@ -290,9 +307,9 @@ final class OverlayView: NSView {
         cursorLabel.isHidden = false
     }
 
-    private static func makeLabel() -> NSTextField {
+    private static func makeLabel(fontSize: CGFloat = 11) -> NSTextField {
         let label = PaddedLabel(labelWithString: "")
-        label.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        label.font = .monospacedDigitSystemFont(ofSize: fontSize, weight: .medium)
         label.textColor = .white
         label.wantsLayer = true
         label.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.7).cgColor

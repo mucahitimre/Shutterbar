@@ -28,16 +28,22 @@ final class OverlayController: OverlayViewDelegate {
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
         preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
+        hud: String? = nil,
         onPresented: @escaping () -> Void
     ) async -> OverlayResult {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
-            present(snapshots: snapshots, quickCapture: quickCapture, preview: preview)
+            present(snapshots: snapshots, quickCapture: quickCapture, preview: preview, hud: hud)
             onPresented()
         }
     }
 
-    private func present(snapshots: [DisplaySnapshot], quickCapture: Bool, preview: (displayID: CGDirectDisplayID, rect: CGRect)?) {
+    private func present(
+        snapshots: [DisplaySnapshot],
+        quickCapture: Bool,
+        preview: (displayID: CGDirectDisplayID, rect: CGRect)?,
+        hud: String?
+    ) {
         let front = NSWorkspace.shared.frontmostApplication
         previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
 
@@ -60,6 +66,7 @@ final class OverlayController: OverlayViewDelegate {
         if let active {
             makeKey(active)
             active.updateCursor(fromGlobal: mouse)
+            if let hud { active.showHUD(hud) }
         }
         NSCursor.crosshair.set()
         CATransaction.flush()

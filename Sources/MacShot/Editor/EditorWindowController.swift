@@ -2,13 +2,13 @@ import AppKit
 import MacShotCore
 import SwiftUI
 
-/// Yakalanan görüntüyü annotation için açar; sonucu async döndürür.
+/// Opens the captured image for annotation; returns the result asynchronously.
 @MainActor
 final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDelegate {
     enum Result {
-        /// Bitti: seçili after-capture task'ları düzenlenmiş görüntüyle çalışır.
+        /// Done: the selected after-capture tasks run with the edited image.
         case done(CGImage)
-        /// ⌘C / Kopyala: yalnız pano.
+        /// ⌘C / Copy: clipboard only.
         case copyOnly(CGImage)
         case cancelled
     }
@@ -46,11 +46,11 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
             canvas.leadingAnchor.constraint(greaterThanOrEqualTo: content.leadingAnchor),
             canvas.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
             canvas.heightAnchor.constraint(equalTo: canvas.widthAnchor, multiplier: aspect),
-            // %100'ün üstüne büyütme: küçük yakalamalar bulanıklaşmasın.
+            // Don't scale above 100%: small captures should not get blurry.
             canvas.widthAnchor.constraint(lessThanOrEqualToConstant: CGFloat(image.width) / (NSScreen.main?.backingScaleFactor ?? 2)),
         ])
-        // Pencere büyüdükçe canvas en boy oranını koruyarak büyür. Öncelik pencerenin boyutunu koruma
-        // önceliğinin (500) altında: canvas pencereyi büyütmez, pencereye uyar.
+        // As the window grows, the canvas grows while keeping its aspect ratio. The priority is below the window's
+        // size-keeping priority (500): the canvas does not grow the window, it fits the window.
         let fill = NSLayoutConstraint.Priority(rawValue: NSLayoutConstraint.Priority.windowSizeStayPut.rawValue - 10)
         let fillWidth = canvas.widthAnchor.constraint(equalTo: content.widthAnchor)
         fillWidth.priority = fill
@@ -59,7 +59,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
         NSLayoutConstraint.activate([fillWidth, fillHeight])
 
         window.contentView = content
-        window.title = "\(AppInfo.name) — Annotation"
+        window.title = "\(AppInfo.name) — Annotate"
         window.delegate = self
         window.isReleasedWhenClosed = false
         let toolbarSize = toolbar.fittingSize
@@ -68,7 +68,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
         window.center()
     }
 
-    /// Görüntüyü %100 (ekran ölçeğinde) gösterir; ekranın %85'ine sığmazsa küçültür.
+    /// Shows the image at 100% (at screen scale); scales it down if it doesn't fit in 85% of the screen.
     private static func initialSize(for image: CGImage, toolbar: CGSize) -> CGSize {
         let toolbarHeight = toolbar.height
         let screen = NSScreen.main
@@ -78,7 +78,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
         let limit = CGSize(width: visible.width * 0.85, height: visible.height * 0.85 - toolbarHeight)
         let fit = min(1, limit.width / size.width, limit.height / size.height)
         size = CGSize(width: size.width * fit, height: size.height * fit)
-        // Toolbar'dan dar görüntüde canvas ortalanır, yükseklik oranla gelir.
+        // For an image narrower than the toolbar, the canvas is centered and the height follows the aspect ratio.
         return CGSize(width: max(size.width, toolbar.width), height: size.height + toolbarHeight)
     }
 
@@ -92,7 +92,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
     }
 
     #if DEBUG
-    /// Öz test: her araçtan bir işaret ekler, pencere içeriğini `url`'ye yazar, sonra Bitti.
+    /// Self-test: adds one mark per tool, writes the window contents to `url`, then Done.
     func runSelfTest(snapshotTo url: URL) {
         let w = CGFloat(canvas.image.width), h = CGFloat(canvas.image.height)
         model.add(.arrow(from: CGPoint(x: w * 0.1, y: h * 0.1), to: CGPoint(x: w * 0.4, y: h * 0.35)))
@@ -101,7 +101,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
         model.add(.rectangle(CGRect(x: w * 0.5, y: h * 0.3, width: w * 0.3, height: h * 0.3)))
         model.color = .black
         model.width = .medium
-        model.add(.text("Merhaba MacShot", origin: CGPoint(x: w * 0.15, y: h * 0.45)))
+        model.add(.text("Hello MacShot", origin: CGPoint(x: w * 0.15, y: h * 0.45)))
         model.add(.pixelate(CGRect(x: w * 0.12, y: h * 0.62, width: w * 0.3, height: h * 0.15)))
         model.color = .red
         model.add(.number(model.document.nextNumber, center: CGPoint(x: w * 0.85, y: h * 0.15)))
@@ -110,7 +110,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
             guard let view = window.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: url)
-            Log.output.info("Editör öz test görüntüsü: \(url.path, privacy: .public)")
+            Log.output.info("Editor self-test image: \(url.path, privacy: .public)")
             finish(copy: false)
         }
     }
@@ -119,7 +119,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate, EditorCanvasDele
     private func finish(copy: Bool) {
         canvas.finishEditing()
         guard let rendered = AnnotationRenderer.render(model.document.items, on: canvas.image) else {
-            Log.output.error("Annotation işlenemedi")
+            Log.output.error("Could not render annotations")
             close(with: .cancelled)
             return
         }
@@ -153,7 +153,7 @@ private struct EditorToolbar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Picker("Araç", selection: $model.tool) {
+            Picker("Tool", selection: $model.tool) {
                 ForEach(EditorModel.Tool.allCases) { tool in
                     Label(tool.title, systemImage: tool.symbol)
                         .labelStyle(.iconOnly)
@@ -180,7 +180,7 @@ private struct EditorToolbar: View {
                 }
             }
 
-            Picker("Kalınlık", selection: $model.width) {
+            Picker("Width", selection: $model.width) {
                 ForEach(EditorModel.Width.allCases) { width in
                     Text(width.title).tag(width)
                 }
@@ -192,17 +192,17 @@ private struct EditorToolbar: View {
 
             Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
                 .disabled(!model.document.canUndo)
-                .help("Geri al (⌘Z)")
+                .help("Undo (⌘Z)")
             Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
                 .disabled(!model.document.canRedo)
-                .help("Yinele (⇧⌘Z)")
-            Button("Temizle") { model.clear() }
+                .help("Redo (⇧⌘Z)")
+            Button("Clear") { model.clear() }
                 .disabled(!model.document.canUndo)
-            Button("Kopyala", action: onCopy)
-                .help("Yalnız panoya al (⌘C)")
-            Button("Bitti", action: onDone)
+            Button("Copy", action: onCopy)
+                .help("Copy to clipboard only (⌘C)")
+            Button("Done", action: onDone)
                 .keyboardShortcut(.defaultAction)
-                .help("After-capture task'larını çalıştır (Enter / ⌘S)")
+                .help("Run after-capture tasks (Enter / ⌘S)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

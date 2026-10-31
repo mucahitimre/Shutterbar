@@ -1,6 +1,6 @@
 import ServiceManagement
 
-/// Launch at login (R5.5). Gösterilen durum her zaman `SMAppService.mainApp.status`'tan okunur.
+/// Launch at login (R5.5). The displayed state is always read from `SMAppService.mainApp.status`.
 @MainActor
 final class LoginItem: ObservableObject {
     @Published private(set) var status: SMAppService.Status = SMAppService.mainApp.status
@@ -22,7 +22,7 @@ final class LoginItem: ObservableObject {
             lastError = nil
         } catch {
             lastError = error.localizedDescription
-            Log.app.error("Launch at login değiştirilemedi: \(error.localizedDescription, privacy: .public)")
+            Log.app.error("Could not change launch at login: \(error.localizedDescription, privacy: .public)")
         }
         refresh()
     }

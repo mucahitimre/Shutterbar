@@ -2,7 +2,7 @@ import AppKit
 import MacShotCore
 @preconcurrency import UserNotifications
 
-/// Yakalama bildirimleri. Bildirime tıklanınca kayıtlı dosya Finder'da seçilir.
+/// Capture notifications. Clicking a notification selects the saved file in Finder.
 @MainActor
 final class Notifier: NSObject {
     nonisolated private static let pathKey = "path"
@@ -14,17 +14,17 @@ final class Notifier: NSObject {
     }
 
     func post(title: String, body: String, file: URL?, thumbnail: CGImage? = nil) {
-        // Ek dosyası sistem tarafından taşınır; kayıtlı dosya yerine geçici küçük kopya verilir.
+        // The attachment file is moved by the system, so a small temporary copy is given instead of the saved file.
         let attachmentURL = thumbnail.flatMap(Self.writeThumbnail)
         Task {
             do {
-                // İlk çağrıda izin sorulur; sonra sistem ayarındaki karar döner.
+                // Permission is requested on the first call; afterwards the decision from System Settings is returned.
                 guard try await center.requestAuthorization(options: [.alert, .sound]) else {
-                    Log.output.info("Bildirim izni yok; bildirim atlandı")
+                    Log.output.info("No notification permission; notification skipped")
                     return
                 }
             } catch {
-                Log.output.error("Bildirim izni alınamadı: \(error.localizedDescription, privacy: .public)")
+                Log.output.error("Could not get notification permission: \(error.localizedDescription, privacy: .public)")
                 return
             }
             let content = UNMutableNotificationContent()
@@ -41,7 +41,7 @@ final class Notifier: NSObject {
             do {
                 try await center.add(request)
             } catch {
-                Log.output.error("Bildirim gönderilemedi: \(error.localizedDescription, privacy: .public)")
+                Log.output.error("Could not post notification: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -50,7 +50,7 @@ final class Notifier: NSObject {
 extension Notifier {
     static let thumbnailMaxSide = 480
 
-    /// Uzun kenarı en çok `thumbnailMaxSide` piksel PNG; geçici klasöre.
+    /// PNG with the long side at most `thumbnailMaxSide` pixels; in the temporary folder.
     static func writeThumbnail(_ image: CGImage) -> URL? {
         let scale = min(1, CGFloat(thumbnailMaxSide) / CGFloat(max(image.width, image.height)))
         let width = max(1, Int(CGFloat(image.width) * scale))
@@ -67,7 +67,7 @@ extension Notifier {
             try PNGEncoder.write(small, to: url)
             return url
         } catch {
-            Log.output.error("Bildirim küçük resmi yazılamadı: \(error.localizedDescription, privacy: .public)")
+            Log.output.error("Could not write notification thumbnail: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
@@ -78,7 +78,7 @@ extension Notifier: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        // Menu bar uygulaması overlay sonrası aktif kalabilir; bildirim yine görünsün.
+        // The menu bar app may stay active after the overlay; show the notification anyway.
         [.banner, .list]
     }
 

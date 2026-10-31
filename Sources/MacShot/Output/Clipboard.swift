@@ -1,7 +1,7 @@
 import AppKit
 import MacShotCore
 
-/// Görüntüleri panoya PNG + TIFF olarak yazar; istenirse dosya URL'si de. Birden çok görüntü ayrı item olur.
+/// Writes images to the clipboard as PNG + TIFF, plus the file URL if requested. Multiple images become separate items.
 @MainActor
 enum Clipboard {
     enum ClipboardError: LocalizedError {
@@ -10,13 +10,13 @@ enum Clipboard {
 
         var errorDescription: String? {
             switch self {
-            case .encodingFailed: "görüntü kodlanamadı"
-            case .writeFailed: "panoya yazılamadı"
+            case .encodingFailed: "could not encode image"
+            case .writeFailed: "could not write to clipboard"
             }
         }
     }
 
-    /// - Parameter fileURLs: verilirse aynı item'a dosya URL'si de eklenir (Finder'a yapıştırınca dosya gelir).
+    /// - Parameter fileURLs: if given, the file URL is added to the same item too (pasting into Finder yields the file).
     static func write(_ images: [CGImage], fileURLs: [URL] = [], to pasteboard: NSPasteboard = .general) throws {
         var items: [NSPasteboardItem] = []
         for (index, image) in images.enumerated() {

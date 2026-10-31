@@ -18,7 +18,7 @@ final class SettingsWindowController {
         if window == nil {
             let view = SettingsView(hotkeys: hotkeys, preferences: preferences, openOnboarding: openOnboarding)
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-            window.title = "\(AppInfo.name) Ayarları"
+            window.title = "\(AppInfo.name) Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.center()

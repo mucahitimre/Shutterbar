@@ -10,8 +10,8 @@ protocol OverlayViewDelegate: AnyObject {
     func overlayView(_ view: OverlayView, didChangeMagnifierPixelCount count: Int)
 }
 
-/// Donmuş kareyi gösterir, seçim dışını karartır, seçim çerçevesini ve etiketleri çizer.
-/// Görünüm flipped: koordinatları doğrudan display-local point.
+/// Shows the frozen frame, dims outside the selection, draws the selection border and labels.
+/// The view is flipped: its coordinates are display-local points directly.
 final class OverlayView: NSView {
     weak var delegate: OverlayViewDelegate?
     let snapshot: DisplaySnapshot
@@ -111,14 +111,14 @@ final class OverlayView: NSView {
         NSCursor.crosshair.set()
     }
 
-    // MARK: Dışarıdan
+    // MARK: External
 
     func resetSelection() {
         machine.reset()
         refresh()
     }
 
-    /// Ekranın üst ortasında kısa süreli bilgi metni (R3.4).
+    /// Short-lived info text at the top center of the screen (R3.4).
     func showHUD(_ text: String, duration: TimeInterval = 2.5) {
         hudLabel.stringValue = text
         hudLabel.sizeToFit()
@@ -148,7 +148,7 @@ final class OverlayView: NSView {
         refresh()
     }
 
-    // MARK: Fare
+    // MARK: Mouse
 
     override func mouseEntered(with event: NSEvent) {
         delegate?.overlayViewMouseEntered(self)
@@ -180,10 +180,10 @@ final class OverlayView: NSView {
         emit(output)
     }
 
-    /// Tekerlek: büyüteç boyutu (yukarı büyütür). Ekranlar arasında eşitlenir.
+    /// Mouse wheel: magnifier size (up enlarges). Kept in sync across screens.
     override func scrollWheel(with event: NSEvent) {
         guard let magnifier, event.scrollingDeltaY != 0 else { return }
-        // Trackpad tek harekette çok olay üretir; delta birikince bir adım say.
+        // A trackpad produces many events per gesture; count one step once the delta accumulates.
         if event.hasPreciseScrollingDeltas {
             scrollAccumulator += event.scrollingDeltaY
             guard abs(scrollAccumulator) >= 12 else { return }
@@ -206,9 +206,9 @@ final class OverlayView: NSView {
         refresh()
     }
 
-    // MARK: Klavye
+    // MARK: Keyboard
 
-    /// ⌘ kombinasyonları keyDown'dan önce buraya gelir.
+    /// ⌘ combinations arrive here before keyDown.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard Self.isCopy(event) else { return super.performKeyEquivalent(with: event) }
         emit(machine.key(.copy))
@@ -238,7 +238,7 @@ final class OverlayView: NSView {
         case kVK_Return, kVK_ANSI_KeypadEnter: return .enter
         case kVK_Delete, kVK_ForwardDelete: return .delete
         case kVK_Space: return .space
-        // ~ / ` : ANSI'de Grave, ISO klavyelerde (TR dahil) sol üst tuş Section olarak gelebilir.
+        // ~ / ` : Grave on ANSI; on ISO keyboards (including Turkish) the top-left key may arrive as Section.
         case kVK_ANSI_Grave, kVK_ISO_Section: return .activeScreen
         case kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
              kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0:
@@ -257,9 +257,9 @@ final class OverlayView: NSView {
         }
     }
 
-    // MARK: Yardımcılar
+    // MARK: Helpers
 
-    /// 1 → 0, …, 9 → 8, 0 → 9 (keyCode'lar ardışık değil).
+    /// 1 → 0, …, 9 → 8, 0 → 9 (keyCodes are not sequential).
     private static func screenIndex(forDigitKey keyCode: Int) -> Int {
         let order = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
                      kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0]
@@ -287,7 +287,7 @@ final class OverlayView: NSView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        // Seçim yoksa imlecin altındaki pencere (snap) seçim gibi gösterilir.
+        // Without a selection, the window under the cursor (snap) is shown like a selection.
         let isHover = machine.selection == nil && machine.hoveredWindow != nil
         let highlighted = machine.selection ?? machine.hoveredWindow
 
@@ -352,7 +352,7 @@ final class OverlayView: NSView {
         cursorLabel.stringValue = "\(Int(pixel.x)), \(Int(pixel.y))"
         cursorLabel.sizeToFit()
 
-        // İmlecin sağ-altına büyüteç + altında koordinat; sığmazsa sola / yukarı çevir.
+        // Magnifier at the cursor's bottom-right with coordinates below it; flip left / up if it doesn't fit.
         let gap: CGFloat = 16
         let magnifierSize = magnifier.map { CGSize(width: $0.side, height: $0.side + 4) } ?? .zero
         let block = CGSize(
@@ -383,7 +383,7 @@ final class OverlayView: NSView {
     }
 }
 
-/// Şekil katmanlarını taşır; flipped olduğu için katman koordinatları display-local ile aynı.
+/// Hosts the shape layers; since it is flipped, layer coordinates match display-local.
 private final class ShapeHostView: NSView {
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -406,7 +406,7 @@ private final class PaddedLabel: NSTextField {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        // Metni dolgu içinde ortala.
+        // Center the text within the padding.
         let text = attributedStringValue
         let size = text.size()
         text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2))

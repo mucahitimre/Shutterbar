@@ -1,19 +1,20 @@
 import AppKit
 import MacShotCore
 
-/// Bölgenin nereye gideceği: Enter → after-capture task'ları, ⌘C → yalnız pano.
+/// Where the region goes: Enter → after-capture tasks, ⌘C → clipboard only.
 enum CaptureIntent {
     case afterCapture
     case clipboardOnly
 }
 
 enum OverlayResult {
-    case region(DisplaySnapshot, CGRect, CaptureIntent)
+    /// `isWindow`: an unmodified window picked by clicking; not stored as the last region.
+    case region(DisplaySnapshot, CGRect, CaptureIntent, isWindow: Bool)
     case screens([DisplaySnapshot])
     case cancelled
 }
 
-/// Her ekran için bir overlay paneli açar ve kullanıcının seçimini bekler.
+/// Opens an overlay panel for each screen and waits for the user's selection.
 @MainActor
 final class OverlayController: OverlayViewDelegate {
     private var panels: [OverlayPanel] = []
@@ -23,10 +24,10 @@ final class OverlayController: OverlayViewDelegate {
 
     var isPresented: Bool { continuation != nil }
 
-    /// Tekerlekle değişen büyüteç boyutu; kalıcı tutmak için çağıran dinler.
+    /// Magnifier size changed with the mouse wheel; the caller listens to persist it.
     var onMagnifierPixelCountChange: ((Int) -> Void)?
 
-    /// - Parameter preview: son bölgenin hangi ekranda (displayID) hangi rect olduğu.
+    /// - Parameter preview: which display (displayID) and rect the last region is on.
     func run(
         snapshots: [DisplaySnapshot],
         quickCapture: Bool,
@@ -114,9 +115,9 @@ final class OverlayController: OverlayViewDelegate {
         case .none:
             break
         case .capture(let rect):
-            finish(.region(view.snapshot, rect, .afterCapture))
+            finish(.region(view.snapshot, rect, .afterCapture, isWindow: view.machine.selectionIsWindow))
         case .copy(let rect):
-            finish(.region(view.snapshot, rect, .clipboardOnly))
+            finish(.region(view.snapshot, rect, .clipboardOnly, isWindow: view.machine.selectionIsWindow))
         case .cancel:
             finish(.cancelled)
         case .captureAllScreens:
@@ -154,7 +155,7 @@ final class OverlayController: OverlayViewDelegate {
     }
 
     func overlayViewMouseEntered(_ view: OverlayView) {
-        // Sürükleme sürerken anahtar pencereyi değiştirme; seçim başladığı ekranda kalır.
+        // Don't change the key window during a drag; the selection stays on the screen where it started.
         guard NSEvent.pressedMouseButtons == 0 else { return }
         makeKey(view)
     }

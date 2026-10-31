@@ -3,7 +3,7 @@ import CoreGraphics
 
 @MainActor
 enum PermissionService {
-    /// Not: preflight sonucu false ise izin verildikten sonra da process yeniden başlayana kadar false kalabilir.
+    /// Note: if the preflight result is false, it may stay false even after permission is granted until the process is relaunched.
     static var hasScreenCaptureAccess: Bool {
         CGPreflightScreenCaptureAccess()
     }
@@ -23,7 +23,7 @@ enum PermissionService {
         configuration.createsNewApplicationInstance = true
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
             if let error {
-                Log.app.error("Yeniden başlatma başarısız: \(error.localizedDescription, privacy: .public)")
+                Log.app.error("Relaunch failed: \(error.localizedDescription, privacy: .public)")
                 return
             }
             DispatchQueue.main.async { NSApp.terminate(nil) }

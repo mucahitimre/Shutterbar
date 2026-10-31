@@ -1,8 +1,8 @@
 import CoreGraphics
 
-/// Overlay'de imlecin altındaki pencereyi bulur (ShareX "DetectWindows").
+/// Finds the window under the cursor in the overlay (ShareX "DetectWindows").
 public enum WindowSnap {
-    /// Dondurma anındaki pencere bilgisi. `frame` Quartz global.
+    /// Window info at freeze time. `frame` is Quartz global.
     public struct Window: Equatable, Sendable {
         public var frame: CGRect
         public var layer: Int
@@ -15,13 +15,13 @@ public enum WindowSnap {
         }
     }
 
-    /// Normal pencereler ve floating / modal paneller. Dock (20) tüm ekranı kaplayan şeffaf bir pencere tuttuğu,
-    /// menü çubuğu (24+) da istenmediği için hariç.
+    /// Normal windows and floating / modal panels. The Dock (20) is excluded because it keeps a transparent full-screen window,
+    /// and the menu bar (24+) because it is not wanted.
     public static let maxLayer = 19
     public static let minimumSide: CGFloat = 20
 
-    /// Önden arkaya sıralı pencerelerden bu ekrana düşenleri display-local rect olarak verir (sıra korunur).
-    /// Kendi pencerelerimiz, çok küçükler ve menü çubuğu katmanı elenir; rect ekran sınırına kırpılır.
+    /// From windows ordered front to back, returns those on this screen as display-local rects (order is kept).
+    /// Our own windows, tiny ones and the menu bar layer are filtered out; rects are clipped to the screen bounds.
     public static func localRects(
         _ windows: [Window],
         excludingPID: Int32,
@@ -42,7 +42,7 @@ public enum WindowSnap {
         }
     }
 
-    /// İlk (en öndeki) içeren rect.
+    /// The first (frontmost) rect containing the point.
     public static func window(at point: CGPoint, in rects: [CGRect]) -> CGRect? {
         rects.first { $0.contains(point) }
     }

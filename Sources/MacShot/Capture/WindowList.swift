@@ -1,8 +1,8 @@
 import AppKit
 import MacShotCore
 
-/// Dondurma anındaki ekrandaki pencereler, önden arkaya. Yalnız sınır / katman / sahip okunur;
-/// görüntü yakalama ScreenCaptureKit'tedir (bu bir capture API'si değildir).
+/// On-screen windows at freeze time, front to back. Only bounds / layer / owner are read;
+/// image capture is done by ScreenCaptureKit (this is not a capture API).
 enum WindowList {
     static func onScreen() -> [WindowSnap.Window] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]

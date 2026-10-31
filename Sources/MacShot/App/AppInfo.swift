@@ -2,7 +2,7 @@ import Foundation
 import os
 
 enum AppInfo {
-    /// project.yml'deki `APP_NAME`; Info.plist üzerinden okunur.
+    /// `APP_NAME` from project.yml; read via Info.plist.
     static let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "MacShot"
     static let bundleID = Bundle.main.bundleIdentifier ?? "com.mucahitimre.macshot"
 }

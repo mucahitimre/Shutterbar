@@ -1,22 +1,28 @@
 # MacShot
 
-ShareX'in region capture akışını macOS'a taşıyan minimum menu bar uygulaması: ekranı dondur, bölge seç, after-capture task'larını çalıştır, son bölgeyi hatırla.
+A minimal macOS menu bar app that brings ShareX's region capture flow to the Mac: freeze the screen, select a region, run after-capture tasks, and remember the last region.
 
-Plan ve gereksinimler: [docs/plan.md](docs/plan.md)
+Original planning document: [docs/plan.md](docs/plan.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
 
-## Kurulum
+## Install
+
+Download the latest `MacShot-x.y.z.dmg` from [Releases](https://github.com/mucahitimre/MacShot/releases), drag MacShot to Applications and open it. Release builds are signed with a Developer ID and notarized by Apple. On first launch MacShot asks for Screen Recording permission (see [Permission](#permission)).
+
+Requires macOS 14.0 or later.
+
+## Build from source
 
 ```bash
 brew install xcodegen
-cp Config/Local.xcconfig.example Config/Local.xcconfig   # Team ID ve bundle id öneki
+cp Config/Local.xcconfig.example Config/Local.xcconfig   # your Team ID and bundle id prefix
 xcodegen generate
 xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD build
 open build/DD/Build/Products/Debug/MacShot.app
 ```
 
-- macOS 14.0+, Xcode 16+ (Swift 6).
-- İmza: `Config/Local.xcconfig` (gitignore'da) içinde `DEVELOPMENT_TEAM` ve `BUNDLE_ID_PREFIX`; depodaki varsayılanlar `Config/Signing.xcconfig`'te (boş team, `com.example`). Ad-hoc imzalı build'de Ekran Kaydı izni her build'de kaybolur; sabit bir Apple Development kimliği kullanın. Bundle id öneki değişirse izin sıfırlanır.
-- Uygulama adı `project.yml` içindeki `APP_NAME` sabitinden, bundle id `$(BUNDLE_ID_PREFIX).$(APP_NAME:lower)` olarak türetilir.
+- Xcode 16+ (Swift 6, strict concurrency).
+- Signing: set `DEVELOPMENT_TEAM` and `BUNDLE_ID_PREFIX` in `Config/Local.xcconfig` (gitignored). Repository defaults live in `Config/Signing.xcconfig` (empty team, `com.example`). Ad-hoc signed builds lose the Screen Recording permission on every rebuild, so use a stable Apple Development identity. Changing the bundle id prefix also resets the permission.
+- The app name comes from `APP_NAME` in `project.yml`; the bundle id is `$(BUNDLE_ID_PREFIX).$(APP_NAME:lower)`.
 
 ## Test
 
@@ -24,94 +30,100 @@ open build/DD/Build/Products/Debug/MacShot.app
 xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD test
 ```
 
-Debug build'de `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` editörü örnek görüntüyle açar (capture izni gerekmez).
+Pure logic (geometry, selection state machine, file naming, last region decisions, window detection, annotations) lives in the `MacShotCore` framework and is tested without a host app.
 
-Saf mantık (geometri, seçim durum makinesi, dosya adı, last region kararı, pencere algılama, annotation) `MacShotCore` framework'ünde ve host uygulama olmadan test edilir.
+In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed).
 
-## Kullanım
+Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 
-| Kısayol | İş |
+## Usage
+
+| Shortcut | Action |
 |---|---|
-| ⌘⇧X | Capture region: ekranlar donar, bölge seçilir |
-| ⌥⇧5 | Capture last region: overlay açmadan son bölgeyi alır |
+| ⌘⇧X | Capture region: screens freeze, select a region |
+| ⌥⇧5 | Capture last region: captures the last region without opening the overlay |
 
-Kısayollar Ayarlar'dan değiştirilebilir. Overlay içinde:
+Shortcuts can be changed in Settings. Inside the overlay:
 
-| Tuş / fare | İş |
+| Key / mouse | Action |
 |---|---|
-| Sürükle | Seçim. Quick capture kapalıyken (varsayılan) seçim kalır; içinden sürükleyerek taşınır, 8 tutamaçla boyutlandırılır |
-| Pencere üstünde tıkla | Pencere algılama: imlecin altındaki pencere vurgulanır, tıklayınca seçim olur (ayardan kapatılabilir) |
-| Enter / seçim içine çift tık | Yakala ve seçili after-capture task'larını çalıştır |
-| ⌘C | Yakala ve **yalnız panoya** al (after-capture task'ları çalışmaz) |
-| Esc / sağ tık | İptal; dosya ve pano değişmez |
-| Shift (çizerken) | Kare |
-| ⌥ (çizerken) | Seçimi taşı |
-| Ok / Shift+Ok | İmleci ya da seçimi 1 / 10 piksel kaydır |
-| Delete | Seçimi temizle |
-| Space | Tüm ekranlar (her ekran ayrı dosya) |
-| ~ / ` | İmlecin bulunduğu ekran |
-| 1 … 9, 0 | Sıradaki ekranın tamamı (sistem ekran sırası; 0 = onuncu) |
-| Fare tekerleği | Büyüteç boyutu (7…31 piksel, kalıcı) |
+| Drag | Select. With quick capture off (default) the selection stays: drag inside to move it, use the 8 handles to resize |
+| Click on a window | Window detection: the window under the cursor is highlighted, clicking selects it (can be turned off) |
+| Enter / double-click inside | Capture and run the selected after-capture tasks |
+| ⌘C | Capture to the **clipboard only** (after-capture tasks are skipped) |
+| Esc / right-click | Cancel; no file, clipboard unchanged |
+| Shift (while drawing) | Square |
+| ⌥ (while drawing) | Move the selection |
+| Arrow / Shift+Arrow | Move the cursor or selection by 1 / 10 pixels |
+| Delete | Clear the selection |
+| Space | All screens (one file per screen) |
+| ~ / ` | The screen under the cursor |
+| 1 … 9, 0 | The whole screen with that number (system screen order; 0 = tenth) |
+| Mouse wheel | Magnifier size (7…31 pixels, remembered) |
 
-After-capture task'ları (menü > After capture ya da Ayarlar), çalışma sırası: annotation editörü → dosyaya kaydet → panoya kopyala (PNG + TIFF; istenirse dosya URL'si de) → Finder'da göster → bildirim (küçük resimli; tıklayınca dosya Finder'da). Varsayılan: kaydet + pano. Bir task hata verirse diğerleri yine çalışır, hatalar tek bildirimde özetlenir. Dosyalar `~/Pictures/MacShot/yyyy-MM/Screenshot_yyyy-MM-dd_HH-mm-ss.png`; klasör Ayarlar'dan değiştirilebilir (security-scoped bookmark, erişilemezse varsayılana döner).
+**After-capture tasks** (menu > After capture, or Settings) run in this order: annotation editor → save to file → copy to clipboard (PNG + TIFF, optionally the file URL) → show in Finder → notification (with thumbnail; clicking it reveals the file). Default: save + clipboard. If one task fails the others still run, and failures are summarized in a single notification. Files go to `~/Pictures/MacShot/yyyy-MM/Screenshot_yyyy-MM-dd_HH-mm-ss.png`; the folder can be changed in Settings (security-scoped bookmark, falls back to the default if it becomes inaccessible).
 
-Son bölge: her region capture'dan sonra ekran UUID'si ve rect saklanır (yeniden başlatmada korunur). Region overlay'inde soluk kesikli çizilir, Enter ile kabul edilir. Ekran bağlı değilse ya da rect artık sığmıyorsa ⌥⇧5 overlay'i "Son bölge bu ekran düzeninde geçerli değil" mesajıyla açar. Space / ~ son bölgeyi değiştirmez.
+**Last region:** after every region capture the display UUID and rect are stored (kept across relaunches). The region overlay shows it as a faint dashed outline; Enter accepts it. If the display is gone or the rect no longer fits, ⌥⇧5 opens the overlay with "Last region is not valid for this display layout". Window captures (clicking a detected window without changing it) and Space / ~ captures do not change the last region; only drawn regions are remembered.
 
-### Annotation editörü
+### Annotation editor
 
-"Annotation editörünü aç" task'ı seçiliyse yakalanan görüntü önce editörde açılır; diğer task'lar düzenlenmiş görüntüyle çalışır (tam ekran çoklu yakalamada editör atlanır).
+When the "Open annotation editor" task is selected, the capture opens in the editor first and the other tasks run on the edited image (skipped for multi-screen captures).
 
-| Kısayol | İş |
+| Shortcut | Action |
 |---|---|
-| A / R / T / B / N | Ok / kutu / metin / bulanık (pixelate) / numara rozeti |
-| ⌘Z / ⇧⌘Z | Geri al / yinele |
-| Enter / ⌘S / Bitti | Task'ları çalıştır |
-| ⌘C / Kopyala | Yalnız panoya al |
-| Esc / pencereyi kapat | İptal (görüntü atılır) |
+| A / R / T / B / N | Arrow / rectangle / text / pixelate / number badge |
+| ⌘Z / ⇧⌘Z | Undo / redo |
+| Enter / ⌘S / Done | Run the tasks |
+| ⌘C / Copy | Clipboard only |
+| Esc / close window | Cancel (image discarded) |
 
-Renk ve kalınlık toolbar'dan seçilir. Annotation'lar görüntü pikselinde saklanır, ekranda ve çıktıda aynı çizim kodundan geçer.
+Color and line width are chosen in the toolbar. Annotations are stored in image pixels and drawn by the same code on screen and in the output.
 
-## İzin
+## Permission
 
-İlk açılışta Ekran Kaydı izni istenir: onboarding penceresinde **İzin iste → Sistem Ayarları'nı aç → Uygulamayı yeniden başlat**. macOS izin sonucunu process ömrü boyunca önbelleğe alabildiği için yeniden başlatma şarttır. İzin yoksa ya da capture hata verirse boş/siyah görüntü kaydedilmez. macOS Sequoia ve sonrası izni periyodik olarak yeniden sorabilir; bu bir hata değildir.
+On first launch MacShot asks for Screen Recording permission: in the onboarding window use **Request permission → Open System Settings → Relaunch app**. macOS may cache the permission result for the lifetime of the process, so the relaunch is required. Without permission, or when a capture fails, no blank or wallpaper-only image is saved. macOS Sequoia and later may ask to confirm the permission again periodically; that is expected.
 
-## Hotkey riski
+## Hotkey caveat
 
-macOS 15.0–15.1'de sandbox'lı uygulamalarda yalnız Option / Option+Shift kullanan kısayollar kaydedilemiyordu (`-9868`, 15.2'de düzeldi). KeyboardShortcuts kayıt hatasını bildirmediği için açılışta aynı kombinasyon Carbon ile denenir; başarısızsa Ayarlar'da uyarı ve tek tıkla yedek (⌃⇧4 / ⌃⇧5) çıkar. Secure input açıkken (ör. parola alanı) kısayollar tetiklenmeyebilir.
+On macOS 15.0–15.1, sandboxed apps could not register shortcuts that use only Option or Option+Shift (`-9868`, fixed in 15.2). KeyboardShortcuts does not report registration failures, so MacShot probes the same combination through Carbon at launch; if it fails, Settings shows a warning and a one-click fallback (⌃⇧4 / ⌃⇧5). Shortcuts may not fire while secure input is active (e.g. in a password field).
 
-## Mimari
+## Architecture
 
 ```
-Sources/MacShotCore/   saf mantık, host'suz test edilir
-  CaptureGeometry        global ↔ display-local ↔ piksel ↔ Quartz, yuvarlama, clamp
-  SelectionStateMachine  overlay fare/klavye davranışı
-  AfterCapture           task seti + hata izoleli runner
-  LastRegion             model, UserDefaults store, geçerlilik kararı
-  WindowSnap             pencere rect'leri (Quartz → display-local), isabet testi
-  Annotation             model, geri al/yinele, CoreGraphics/CoreText renderer
+Sources/MacShotCore/   pure logic, tested without a host app
+  CaptureGeometry        global ↔ display-local ↔ pixel ↔ Quartz, rounding, clamping
+  SelectionStateMachine  overlay mouse/keyboard behavior
+  AfterCapture           task set + failure-isolating runner
+  LastRegion             model, UserDefaults store, validity decision
+  WindowSnap             window rects (Quartz → display-local), hit testing
+  Annotation             model, undo/redo, CoreGraphics/CoreText renderer
   FileNamer, ImageCropper (PNGEncoder), HotkeyRegistration
 Sources/MacShot/
-  App/         AppDelegate, menu bar, hotkey'ler, tercihler
+  App/         AppDelegate, menu bar, hotkeys, preferences
   Capture/     ScreenSnapshotService (ScreenCaptureKit), WindowList, CaptureCoordinator
-  Overlay/     ekran başına NSPanel, OverlayView, MagnifierView
-  Editor/      annotation editörü (model, canvas, pencere)
+  Overlay/     one NSPanel per screen, OverlayView, MagnifierView
+  Editor/      annotation editor (model, canvas, window)
   Output/      CaptureOutput, Clipboard, SaveFolder, Notifier
-  Settings/    SwiftUI ayarlar, LoginItem (SMAppService)
-  Onboarding/  izin akışı
+  Settings/    SwiftUI settings, LoginItem (SMAppService)
+  Onboarding/  permission flow
 ```
 
-Freeze: hotkey'de tüm ekranlar `SCScreenshotManager` ile paralel çekilir, overlay ancak sonra gösterilir; kesim bu donmuş kareden yapılır, ikinci capture yoktur. Legacy `CGWindowListCreateImage` kullanılmaz. Pencere algılama için `CGWindowListCopyWindowInfo` yalnız pencere sınırlarını ve z-sırasını okur (görüntü yakalamaz); Dock'un tam ekran şeffaf penceresi (katman 20) ve menü çubuğu elenir.
+Freeze: on the hotkey all screens are captured in parallel with `SCScreenshotManager`, and the overlay is shown only afterwards; the crop comes from that frozen frame, there is no second capture. The legacy `CGWindowListCreateImage` is not used. Window detection uses `CGWindowListCopyWindowInfo` only to read window bounds and z-order (it captures no pixels); the Dock's full-screen transparent window (layer 20) and the menu bar are ignored.
 
-## Bilinen sınırlar
+## Known limitations
 
-- Çok ekranlı birleşik seçim yok; seçim başladığı ekrana clamp edilir.
-- Kontrol (buton vb.) algılama yok; yalnız pencere algılama var.
-- Editörde çizilmiş bir işareti seçip taşıma / silme yok; geri al ile kaldırılır.
-- Launch at login Debug build'de `build/` altından da çalışır, ama uygulama taşınırsa yeniden açılması gerekir; kalıcı kullanım için `/Applications` önerilir.
+- No selection spanning multiple screens; the selection is clamped to the screen where it started.
+- Only window detection, no control (button etc.) detection.
+- Drawn annotations cannot be selected, moved or deleted individually; use undo.
+- Launch at login also works for Debug builds under `build/`, but moving the app requires re-enabling it; install into `/Applications` for regular use.
 
-## Katkı ve lisans
+## Releasing
 
-- Katkı rehberi: [CONTRIBUTING.md](CONTRIBUTING.md) · davranış kuralları: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · güvenlik bildirimi: [SECURITY.md](SECURITY.md)
-- CI (GitHub Actions): her push ve PR'da imzasız build + test ve legacy capture API kontrolü
-- ShareX (GPL-3.0) kodu kopyalanmamıştır; yalnız davranışı referans alınmıştır.
-- Lisans: [MIT](LICENSE) © 2026 Mücahit İmre
+Every stable version is tagged `vX.Y.Z` and published as a signed, notarized DMG and ZIP on GitHub Releases. See [RELEASING.md](RELEASING.md). Mac App Store distribution is evaluated in [docs/app-store.md](docs/app-store.md).
+
+## Contributing and license
+
+- Guide: [CONTRIBUTING.md](CONTRIBUTING.md) · Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · Security: [SECURITY.md](SECURITY.md)
+- CI (GitHub Actions): unsigned build + tests and a legacy capture API check on every push and pull request.
+- No ShareX (GPL-3.0) code was copied; only its behavior served as a reference.
+- License: [MIT](LICENSE) © 2026 Mücahit İmre

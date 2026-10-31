@@ -1,7 +1,7 @@
 import AppKit
 
-/// İmleç çevresindeki pikselleri donmuş kareden büyütür (R1.9). Fare olaylarını yutmaz.
-/// Kenardaki piksel sayısı tekerlekle değişir; merkez pikselin olması için hep tek sayı.
+/// Magnifies the pixels around the cursor from the frozen frame (R1.9). Does not swallow mouse events.
+/// The pixel count along the edge changes with the mouse wheel; always odd so there is a center pixel.
 final class MagnifierView: NSView {
     static let defaultPixelCount = 15
     static let pixelCountRange = 7...31
@@ -9,7 +9,7 @@ final class MagnifierView: NSView {
 
     static func side(for pixelCount: Int) -> CGFloat { CGFloat(pixelCount) * pixelSize }
 
-    /// Tek sayıya ve aralığa oturtur.
+    /// Snaps to an odd number within the range.
     static func normalized(_ count: Int) -> Int {
         let odd = count % 2 == 0 ? count + 1 : count
         return min(max(odd, pixelCountRange.lowerBound), pixelCountRange.upperBound)
@@ -89,7 +89,7 @@ final class MagnifierView: NSView {
         CATransaction.commit()
     }
 
-    /// - Parameter pixel: imlecin altındaki piksel (görüntü koordinatı, sol-üst orijin).
+    /// - Parameter pixel: the pixel under the cursor (image coordinates, top-left origin).
     func update(pixel: CGPoint) {
         lastPixel = pixel
         guard let context else { return }
@@ -101,7 +101,7 @@ final class MagnifierView: NSView {
         context.setFillColor(NSColor.black.cgColor)
         context.fill(CGRect(x: 0, y: 0, width: count, height: count))
         if !clipped.isNull, let piece = image.cropping(to: clipped) {
-            // CGImage kırpması sol-üst, CGContext sol-alt orijinli.
+            // CGImage cropping is top-left origin, CGContext is bottom-left origin.
             let x = clipped.minX - source.minX
             let y = CGFloat(count) - (clipped.minY - source.minY) - clipped.height
             context.draw(piece, in: CGRect(x: x, y: y, width: clipped.width, height: clipped.height))

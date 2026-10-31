@@ -1,7 +1,7 @@
 import Foundation
 import MacShotCore
 
-/// UserDefaults'ta tutulan kullanıcı tercihleri. Menü ve ayarlar aynı nesneyi paylaşır.
+/// User preferences stored in UserDefaults. The menu and settings share the same object.
 @MainActor
 final class Preferences: ObservableObject {
     static let shared = Preferences()
@@ -22,7 +22,7 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(afterCaptureTasks.rawValue, forKey: Key.afterCaptureTasks) }
     }
 
-    /// Fareyi bırakınca hemen yakala. Kapalıyken seçim Enter / ⌘C'ye kadar düzenlenebilir.
+    /// Capture as soon as the mouse is released. When off, the selection can be edited until Enter / ⌘C.
     @Published var quickCapture: Bool {
         didSet { defaults.set(quickCapture, forKey: Key.quickCapture) }
     }
@@ -31,22 +31,22 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(magnifier, forKey: Key.magnifier) }
     }
 
-    /// Büyütecin kenarındaki piksel sayısı; overlay'de tekerlekle değişir.
+    /// Number of pixels along the magnifier's edge; changed with the mouse wheel in the overlay.
     @Published var magnifierPixelCount: Int {
         didSet { defaults.set(magnifierPixelCount, forKey: Key.magnifierPixelCount) }
     }
 
-    /// Overlay'de imlecin altındaki pencereyi vurgula; tıklayınca o pencereyi seç.
+    /// Highlight the window under the cursor in the overlay; clicking selects that window.
     @Published var windowSnap: Bool {
         didSet { defaults.set(windowSnap, forKey: Key.windowSnap) }
     }
 
-    /// Kayıt da açıksa panoya dosya URL'si ekle (varsayılan kapalı: yalnız görüntü).
+    /// Add the file URL to the clipboard when saving is also on (off by default: image only).
     @Published var clipboardIncludesFileURL: Bool {
         didSet { defaults.set(clipboardIncludesFileURL, forKey: Key.clipboardIncludesFileURL) }
     }
 
-    /// Kullanıcının seçtiği klasörün security-scoped bookmark'ı; yoksa varsayılan klasör.
+    /// Security-scoped bookmark of the folder the user chose; if nil, the default folder.
     @Published var saveFolderBookmark: Data? {
         didSet { defaults.set(saveFolderBookmark, forKey: Key.saveFolderBookmark) }
     }

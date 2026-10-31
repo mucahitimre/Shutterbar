@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Bildirim tıklamalarını yakalayan delegate açılışta kurulmalı.
+        // The delegate that handles notification clicks must be set up at launch.
         _ = capture
 
         let hotkeys = HotkeyManager { [weak self] action in
@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ), preferences: .shared)
 
         #if DEBUG
-        // Geliştirme: `open MacShot.app --args -MacShotEditorSample` editörü örnek görüntüyle açar (capture gerekmez).
+        // Development: `open MacShot.app --args -MacShotEditorSample` opens the editor with a sample image (no capture needed).
         if ProcessInfo.processInfo.arguments.contains("-MacShotEditorSample") {
             capture.openEditorSample()
             return
@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onboarding.show()
             return
         }
-        Log.app.info("Tetiklendi: \(action.title, privacy: .public)")
+        Log.app.info("Triggered: \(action.title, privacy: .public)")
         switch action {
         case .region: capture.captureRegion()
         case .lastRegion: capture.captureLastRegion()

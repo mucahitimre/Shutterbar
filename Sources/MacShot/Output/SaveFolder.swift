@@ -1,17 +1,17 @@
 import AppKit
 
-/// Kayıt kök klasörü: varsayılan `~/Pictures/<AppName>` ya da kullanıcının seçtiği klasör (security-scoped bookmark).
+/// Root save folder: the default `~/Pictures/<AppName>` or a folder the user chose (security-scoped bookmark).
 @MainActor
 enum SaveFolder {
     enum FolderError: LocalizedError {
         case bookmarkStale
 
         var errorDescription: String? {
-            "Seçili kayıt klasörüne erişilemedi; varsayılan klasöre dönüldü"
+            "Could not access the chosen save folder; reverted to the default folder"
         }
     }
 
-    /// Gerçek `~/Pictures/<AppName>`; sandbox'ta `NSHomeDirectory()` container'ı gösterdiği için passwd'den okunur.
+    /// The real `~/Pictures/<AppName>`; read from passwd because in the sandbox `NSHomeDirectory()` points to the container.
     static var defaultRoot: URL {
         let home = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
         return URL(fileURLWithPath: home, isDirectory: true)
@@ -19,14 +19,14 @@ enum SaveFolder {
             .appendingPathComponent(AppInfo.name, isDirectory: true)
     }
 
-    /// Ayarlarda gösterilecek yol.
+    /// Path to show in Settings.
     static func displayURL(bookmark: Data?) -> URL {
         guard let bookmark, let url = try? resolve(bookmark).url else { return defaultRoot }
         return url
     }
 
-    /// Kök klasörde çalışır; seçili klasör için erişimi açar ve iş bitince kapatır.
-    /// Bookmark çözülemezse `FolderError.bookmarkStale` atar; çağıran varsayılana döner.
+    /// Runs in the root folder; for a chosen folder, starts access and stops it when done.
+    /// Throws `FolderError.bookmarkStale` if the bookmark cannot be resolved; the caller falls back to the default.
     static func withRoot<T>(bookmark: Data?, _ body: (URL) throws -> T) throws -> T {
         guard let bookmark else { return try body(defaultRoot) }
         let url: URL, stale: Bool
@@ -43,7 +43,7 @@ enum SaveFolder {
         return try body(url)
     }
 
-    /// Klasör seçici; iptal edilirse `nil`.
+    /// Folder picker; `nil` if cancelled.
     static func choose(current: URL) -> Data? {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -51,13 +51,13 @@ enum SaveFolder {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = current
-        panel.prompt = "Seç"
+        panel.prompt = "Choose"
         NSApp.activate()
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         do {
             return try makeBookmark(for: url)
         } catch {
-            Log.output.error("Bookmark oluşturulamadı: \(error.localizedDescription, privacy: .public)")
+            Log.output.error("Could not create bookmark: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

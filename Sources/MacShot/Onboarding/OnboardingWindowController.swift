@@ -9,7 +9,7 @@ final class OnboardingWindowController {
         if window == nil {
             let hosting = NSHostingController(rootView: OnboardingView())
             let window = NSWindow(contentViewController: hosting)
-            window.title = "\(AppInfo.name) — Ekran Kaydı izni"
+            window.title = "\(AppInfo.name) — Screen Recording Permission"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.center()
@@ -25,29 +25,29 @@ private struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Ekran görüntüsü alabilmek için izin gerekiyor")
+            Text("Permission is required to take screenshots")
                 .font(.headline)
-            Text("\(AppInfo.name), seçim yaparken ekranı dondurmak için tüm ekranların görüntüsünü bir kez alır. Bunun için Sistem Ayarları → Gizlilik ve Güvenlik → Ekran ve Sistem Sesi Kaydı listesinde \(AppInfo.name) açık olmalı.")
+            Text("\(AppInfo.name) captures all screens once to freeze the display while you make a selection. For this, \(AppInfo.name) must be enabled under System Settings → Privacy & Security → Screen & System Audio Recording.")
                 .fixedSize(horizontal: false, vertical: true)
-            Text("İzni verdikten sonra uygulamayı yeniden başlatın; macOS izni çalışan uygulamaya bazen yeniden başlatılana kadar yansıtmaz.")
+            Text("Relaunch the app after granting permission; macOS sometimes does not apply the permission to a running app until it is relaunched.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
-                Button("1. İzin iste") {
+                Button("1. Request permission") {
                     PermissionService.requestScreenCaptureAccess()
                     requested = true
                 }
-                Button("2. Sistem Ayarları'nı aç") {
+                Button("2. Open System Settings") {
                     PermissionService.openSystemSettings()
                 }
-                Button("3. Uygulamayı yeniden başlat") {
+                Button("3. Relaunch app") {
                     PermissionService.relaunch()
                 }
                 .keyboardShortcut(.defaultAction)
             }
             if requested {
-                Text("İzin penceresi çıkmadıysa daha önce reddedilmiş olabilir; Sistem Ayarları'ndan açın.")
+                Text("If no permission prompt appeared, it may have been denied before; enable it in System Settings.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

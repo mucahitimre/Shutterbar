@@ -74,7 +74,7 @@ struct SelectionStateMachineTests {
         #expect(sm.selection == CGRect(x: 10, y: 10, width: 200, height: 150))
 
         _ = sm.mouseDown(at: CGPoint(x: 10, y: 85)) // left
-        _ = sm.mouseUp(at: CGPoint(x: 300, y: 85)) // sol kenar sağ kenarı geçer → rect ters döner
+        _ = sm.mouseUp(at: CGPoint(x: 300, y: 85)) // left edge crosses the right edge → rect flips
         #expect(sm.selection == CGRect(x: 210, y: 10, width: 90, height: 150))
     }
 
@@ -204,7 +204,7 @@ struct SelectionStateMachineTests {
         #expect(sm.mouseUp(at: CGPoint(x: 151, y: 150)) == .none)
         #expect(sm.selection == front)
         #expect(sm.hoveredWindow == nil)
-        // Seçim varken vurgu yok.
+        // No highlight while there is a selection.
         sm.mouseMoved(to: CGPoint(x: 600, y: 600))
         #expect(sm.hoveredWindow == nil)
     }
@@ -245,5 +245,45 @@ struct SelectionStateMachineTests {
         _ = sm.mouseUp(at: CGPoint(x: 110, y: 110))
         _ = sm.key(.delete)
         #expect(sm.hoveredWindow == window)
+    }
+
+    @Test func clickedWindowIsMarkedUntilEdited() {
+        var sm = machine(quick: false, scale: 1)
+        let window = CGRect(x: 100, y: 100, width: 300, height: 200)
+        sm.windowRects = [window]
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        _ = sm.mouseUp(at: CGPoint(x: 150, y: 150))
+        #expect(sm.selectionIsWindow)
+        // Moving it makes it a region.
+        _ = sm.key(.arrow(dx: 1, dy: 0))
+        #expect(!sm.selectionIsWindow)
+    }
+
+    @Test func drawnRegionIsNotWindow() {
+        var sm = machine(quick: false)
+        sm.windowRects = [CGRect(x: 0, y: 0, width: 900, height: 700)]
+        _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))
+        _ = sm.mouseUp(at: CGPoint(x: 110, y: 110))
+        #expect(!sm.selectionIsWindow)
+    }
+
+    @Test func quickClickOnWindowIsWindow() {
+        var sm = machine(quick: true)
+        sm.windowRects = [CGRect(x: 100, y: 100, width: 300, height: 200)]
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        _ = sm.mouseUp(at: CGPoint(x: 150, y: 150))
+        #expect(sm.selectionIsWindow)
+    }
+
+    @Test func resizedWindowBecomesRegion() {
+        var sm = machine(quick: false)
+        let window = CGRect(x: 100, y: 100, width: 300, height: 200)
+        sm.windowRects = [window]
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        _ = sm.mouseUp(at: CGPoint(x: 150, y: 150))
+        _ = sm.mouseDown(at: CGPoint(x: 400, y: 300)) // bottomRight handle
+        sm.mouseDragged(to: CGPoint(x: 450, y: 350))
+        _ = sm.mouseUp(at: CGPoint(x: 450, y: 350))
+        #expect(!sm.selectionIsWindow)
     }
 }

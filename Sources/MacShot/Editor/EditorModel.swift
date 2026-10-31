@@ -1,7 +1,7 @@
 import Foundation
 import MacShotCore
 
-/// Editörün araç / stil durumu ve belge. Toolbar (SwiftUI) ile canvas aynı nesneyi paylaşır.
+/// The editor's tool / style state and document. The toolbar (SwiftUI) and the canvas share the same object.
 @MainActor
 final class EditorModel: ObservableObject {
     enum Tool: String, CaseIterable, Identifiable {
@@ -11,11 +11,11 @@ final class EditorModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .arrow: "Ok"
-            case .rectangle: "Kutu"
-            case .text: "Metin"
-            case .pixelate: "Bulanık"
-            case .number: "Numara"
+            case .arrow: "Arrow"
+            case .rectangle: "Rectangle"
+            case .text: "Text"
+            case .pixelate: "Pixelate"
+            case .number: "Number"
             }
         }
 
@@ -29,7 +29,7 @@ final class EditorModel: ObservableObject {
             }
         }
 
-        /// Klavye kısayolu (tek harf).
+        /// Keyboard shortcut (single letter).
         var key: Character {
             switch self {
             case .arrow: "a"
@@ -48,13 +48,13 @@ final class EditorModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .thin: "İnce"
-            case .medium: "Orta"
-            case .thick: "Kalın"
+            case .thin: "Thin"
+            case .medium: "Medium"
+            case .thick: "Thick"
             }
         }
 
-        /// Görüntü pikseli.
+        /// Image pixels.
         var pixels: CGFloat {
             switch self {
             case .thin: 3

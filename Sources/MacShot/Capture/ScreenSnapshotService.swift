@@ -3,7 +3,7 @@ import ColorSync
 import MacShotCore
 @preconcurrency import ScreenCaptureKit
 
-/// Bir ekranın donmuş karesi.
+/// A frozen frame of one display.
 struct DisplaySnapshot {
     let displayID: CGDirectDisplayID
     let uuid: String?
@@ -11,7 +11,7 @@ struct DisplaySnapshot {
     let frame: CGRect
     let image: CGImage
 
-    /// Görüntünün gerçek ölçeği (piksel / point).
+    /// Actual scale of the image (pixels / point).
     var scale: CGFloat {
         CaptureGeometry.scale(imagePixelWidth: image.width, displayPointWidth: frame.width)
     }
@@ -24,9 +24,9 @@ enum SnapshotError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noDisplays: "Yakalanacak ekran bulunamadı."
-        case .displayNotFound: "Ekran artık bağlı değil."
-        case .captureFailed(let error): "Ekran görüntüsü alınamadı: \(error.localizedDescription)"
+        case .noDisplays: "No display found to capture."
+        case .displayNotFound: "The display is no longer connected."
+        case .captureFailed(let error): "Could not take screenshot: \(error.localizedDescription)"
         }
     }
 }
@@ -44,7 +44,7 @@ enum DisplayIdentity {
     }
 }
 
-/// ScreenCaptureKit ile ekran başına tek kare alır. Legacy CoreGraphics capture API'si kullanılmaz.
+/// Takes a single frame per display with ScreenCaptureKit. The legacy CoreGraphics capture API is not used.
 @MainActor
 final class ScreenSnapshotService {
     private struct Target: @unchecked Sendable {
@@ -52,12 +52,12 @@ final class ScreenSnapshotService {
         let frame: CGRect
     }
 
-    /// Bağlı tüm ekranları paralel çeker.
+    /// Captures all connected displays in parallel.
     func snapshotAll() async throws -> [DisplaySnapshot] {
         try await snapshot(where: { _ in true })
     }
 
-    /// Yalnız verilen ekranı çeker (last region için).
+    /// Captures only the given display (for last region).
     func snapshot(displayID: CGDirectDisplayID) async throws -> DisplaySnapshot {
         guard let snapshot = try await snapshot(where: { $0 == displayID }).first else {
             throw SnapshotError.displayNotFound
@@ -108,7 +108,7 @@ final class ScreenSnapshotService {
             )
             let backing = screens.first { $0.displayID == snapshot.displayID }?.backingScaleFactor ?? 0
             if abs(snapshot.scale - backing) > 0.01 {
-                Log.capture.notice("Ölçek farkı: görüntü \(snapshot.scale) / backingScaleFactor \(backing), display \(snapshot.displayID)")
+                Log.capture.notice("Scale mismatch: image \(snapshot.scale) / backingScaleFactor \(backing), display \(snapshot.displayID)")
             }
             return snapshot
         }
@@ -118,7 +118,7 @@ final class ScreenSnapshotService {
         let filter = SCContentFilter(display: display, excludingApplications: apps, exceptingWindows: [])
         let scale = CGFloat(filter.pointPixelScale)
         let config = SCStreamConfiguration()
-        // SCDisplay.width point, SCStreamConfiguration.width piksel: çarpılmazsa Retina'da yarım çözünürlük.
+        // SCDisplay.width is in points, SCStreamConfiguration.width in pixels: without multiplying, Retina gets half resolution.
         config.width = Int((CGFloat(display.width) * scale).rounded())
         config.height = Int((CGFloat(display.height) * scale).rounded())
         config.showsCursor = false
@@ -131,7 +131,7 @@ final class ScreenSnapshotService {
     }
 }
 
-/// SCK tipleri Sendable işaretli değil; değişmeden task'lara aktarılıyor.
+/// SCK types are not marked Sendable; they are passed to tasks unchanged.
 struct UncheckedBox<Value>: @unchecked Sendable {
     let value: Value
     init(_ value: Value) { self.value = value }

@@ -9,8 +9,8 @@ protocol EditorCanvasDelegate: AnyObject {
     func canvasDidRequestCancel(_ canvas: EditorCanvasView)
 }
 
-/// Görüntüyü pencereye sığdırıp çizer; annotation'lar `AnnotationRenderer` ile aynı yoldan çizilir.
-/// Koordinatlar görünümde point, modelde görüntü pikseli (sol-üst orijin).
+/// Draws the image fitted to the window; annotations are drawn through the same path as `AnnotationRenderer`.
+/// Coordinates are points in the view, image pixels in the model (top-left origin).
 final class EditorCanvasView: NSView {
     weak var delegate: EditorCanvasDelegate?
     let image: CGImage
@@ -26,7 +26,7 @@ final class EditorCanvasView: NSView {
         self.model = model
         super.init(frame: .zero)
         observation = model.objectWillChange.sink { [weak self] _ in
-            // objectWillChange değişiklikten önce gelir; çizimi bir sonraki turda yap.
+            // objectWillChange fires before the change; redraw on the next run loop turn.
             DispatchQueue.main.async { self?.needsDisplay = true }
         }
     }
@@ -42,7 +42,7 @@ final class EditorCanvasView: NSView {
         addCursorRect(bounds, cursor: model.tool == .text ? .iBeam : .crosshair)
     }
 
-    /// Görüntü pikseli / görünüm point'i.
+    /// Image pixels / view point.
     private var pixelsPerPoint: CGFloat {
         bounds.width > 0 ? CGFloat(image.width) / bounds.width : 1
     }
@@ -56,11 +56,11 @@ final class EditorCanvasView: NSView {
         )
     }
 
-    // MARK: Çizim
+    // MARK: Drawing
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        // Flipped görünüm: önce görüntüyü düz çiz, sonra piksel ölçeğine geç.
+        // Flipped view: draw the image upright first, then switch to pixel scale.
         context.saveGState()
         context.translateBy(x: 0, y: bounds.height)
         context.scaleBy(x: 1, y: -1)
@@ -77,7 +77,7 @@ final class EditorCanvasView: NSView {
         context.restoreGState()
     }
 
-    // MARK: Fare
+    // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
         commitText()
@@ -117,7 +117,7 @@ final class EditorCanvasView: NSView {
         model.add(draft.shape)
     }
 
-    // MARK: Metin
+    // MARK: Text
 
     private func beginText(at point: CGPoint) {
         textOrigin = point
@@ -129,7 +129,7 @@ final class EditorCanvasView: NSView {
         field.font = .systemFont(ofSize: fontSize)
         let c = model.color
         field.textColor = NSColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: c.alpha)
-        field.placeholderString = "Metin"
+        field.placeholderString = "Text"
         field.target = self
         field.action = #selector(textFieldDidEnd(_:))
         field.sizeToFit()
@@ -155,7 +155,7 @@ final class EditorCanvasView: NSView {
         }
     }
 
-    /// Metin alanı açıkken Esc yalnız metni iptal eder.
+    /// While the text field is open, Esc cancels only the text.
     override func cancelOperation(_ sender: Any?) {
         if let field = textField {
             textField = nil
@@ -166,7 +166,7 @@ final class EditorCanvasView: NSView {
         delegate?.canvasDidRequestCancel(self)
     }
 
-    // MARK: Klavye
+    // MARK: Keyboard
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard textField == nil else { return super.performKeyEquivalent(with: event) }
@@ -200,7 +200,7 @@ final class EditorCanvasView: NSView {
         }
     }
 
-    /// Bitirmeden önce yazılmakta olan metni belgeye al.
+    /// Commit the text being typed to the document before finishing.
     func finishEditing() {
         commitText()
     }

@@ -2,7 +2,7 @@ import CoreGraphics
 import MacShotCore
 import Testing
 
-/// RGBA8 piksel okuyucu; (x, y) sol-üst orijinli.
+/// RGBA8 pixel reader; (x, y) with top-left origin.
 private struct Pixels {
     let width: Int, height: Int
     let bytes: [UInt8]
@@ -20,7 +20,7 @@ private struct Pixels {
         bytes = buffer
     }
 
-    /// Bellekte satır 0 en üst satırdır.
+    /// In memory, row 0 is the top row.
     subscript(x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8) {
         let i = (y * width + x) * 4
         return (bytes[i], bytes[i + 1], bytes[i + 2])
@@ -44,7 +44,7 @@ private let white = makeImage { ctx in
 
 struct AnnotationRendererTests {
     @Test func pixelReaderOrientationIsTopLeft() {
-        // Ölçüm aracının doğrulanması: CGContext'te y=90..100 (alt-sol orijin) = görüntünün en üst 10 satırı.
+        // Validates the measuring tool: y=90..100 in CGContext (bottom-left origin) = the top 10 rows of the image.
         let image = makeImage { ctx in
             ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
             ctx.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
@@ -74,7 +74,7 @@ struct AnnotationRendererTests {
     }
 
     @Test func pixelateMakesUniformBlocksAndKeepsOutside() throws {
-        // 1 px dama tahtası.
+        // 1 px checkerboard.
         let checker = makeImage { ctx in
             for y in 0..<100 { for x in 0..<100 {
                 let on = (x + y) % 2 == 0
@@ -84,11 +84,11 @@ struct AnnotationRendererTests {
         }
         let out = try #require(AnnotationRenderer.render([Annotation(.pixelate(CGRect(x: 0, y: 0, width: 24, height: 24)))], on: checker))
         let before = Pixels(checker), after = Pixels(out)
-        // Bölge içinde 12×12 blok tek renk.
+        // Inside the region, each 12×12 block is a single color.
         #expect(after[1, 1] == after[10, 10])
         #expect(after[1, 1] == after[11, 0])
         #expect(before[1, 1] != before[2, 1])
-        // Bölge dışı değişmez.
+        // Outside the region is unchanged.
         #expect(after[50, 50] == before[50, 50])
         #expect(after[30, 5] == before[30, 5])
     }

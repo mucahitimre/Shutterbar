@@ -89,7 +89,7 @@ struct AfterCaptureRunnerTests {
         mock.failCopy = true
         _ = AfterCaptureRunner.run([.copyToClipboard], images: [image], actions: mock)
         #expect(mock.calls.filter { $0 == "notify" }.count == 1)
-        #expect(mock.notified?.summary == "Panoya kopyala başarısız: boom")
+        #expect(mock.notified?.summary == "Copy to clipboard failed: boom")
     }
 
     @Test func noNotificationWhenSuccessfulAndOff() {
@@ -101,7 +101,7 @@ struct AfterCaptureRunnerTests {
     @Test func summaryListsSavedAndCopied() {
         let mock = MockActions()
         let report = AfterCaptureRunner.run([.saveToFile, .copyToClipboard, .showNotification], images: [image, image], actions: mock)
-        #expect(report?.summary == "2 dosya kaydedildi\nPanoya kopyalandı")
+        #expect(report?.summary == "Saved 2 files\nCopied to clipboard")
     }
 
     @Test func copyReceivesSavedURLs() {

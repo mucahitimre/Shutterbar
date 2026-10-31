@@ -2,14 +2,14 @@ import CoreGraphics
 import CoreText
 import Foundation
 
-/// Görüntü üstüne çizilen tek bir işaret. Koordinatlar görüntü pikseli, sol-üst orijin.
+/// A single mark drawn on top of an image. Coordinates are image pixels, top-left origin.
 public struct Annotation: Equatable, Sendable {
     public enum Shape: Equatable, Sendable {
         case arrow(from: CGPoint, to: CGPoint)
         case rectangle(CGRect)
         case text(String, origin: CGPoint)
         case pixelate(CGRect)
-        /// Sıra numarası rozeti; `center` daire merkezi.
+        /// Sequence number badge; `center` is the circle's center.
         case number(Int, center: CGPoint)
     }
 
@@ -35,7 +35,7 @@ public struct Annotation: Equatable, Sendable {
 
     public var shape: Shape
     public var color: Color
-    /// Çizgi kalınlığı (piksel). Metin boyutu, ok başı ve rozet buna göre ölçeklenir.
+    /// Line width (pixels). Text size, arrowhead and badge scale with it.
     public var lineWidth: CGFloat
 
     public init(_ shape: Shape, color: Color = .red, lineWidth: CGFloat = 4) {
@@ -49,7 +49,7 @@ public struct Annotation: Equatable, Sendable {
     public static let pixelateBlock: CGFloat = 12
 }
 
-/// Annotation listesi + geri al / yinele. Saf değer tipi.
+/// Annotation list + undo / redo. Pure value type.
 public struct AnnotationDocument: Equatable, Sendable {
     public private(set) var items: [Annotation] = []
     private var redoStack: [Annotation] = []
@@ -59,7 +59,7 @@ public struct AnnotationDocument: Equatable, Sendable {
     public var canUndo: Bool { !items.isEmpty }
     public var canRedo: Bool { !redoStack.isEmpty }
 
-    /// Sıradaki numara rozeti: mevcut en büyük + 1 (geri alınca düşer).
+    /// Next number badge: current maximum + 1 (decreases on undo).
     public var nextNumber: Int {
         let numbers = items.compactMap { item -> Int? in
             if case .number(let n, _) = item.shape { return n }
@@ -91,7 +91,7 @@ public struct AnnotationDocument: Equatable, Sendable {
 }
 
 public enum AnnotationRenderer {
-    /// Annotation'ları taban görüntünün üstüne piksel boyutunda işler.
+    /// Renders the annotations on top of the base image at pixel size.
     public static func render(_ items: [Annotation], on base: CGImage) -> CGImage? {
         let width = base.width, height = base.height
         guard let context = CGContext(
@@ -105,7 +105,7 @@ public enum AnnotationRenderer {
         return context.makeImage()
     }
 
-    /// Sol-üst orijinli (y aşağı) bir context'e çizer. Ekrandaki canvas da aynı yolu kullanır.
+    /// Draws into a top-left origin (y down) context. The on-screen canvas uses the same path.
     public static func draw(_ items: [Annotation], base: CGImage, in context: CGContext) {
         for item in items {
             context.saveGState()
@@ -119,7 +119,7 @@ public enum AnnotationRenderer {
         context.scaleBy(x: 1, y: -1)
     }
 
-    /// Bu noktaya en üstteki annotation'ın sınırı (silme / seçme için).
+    /// Bounds of an annotation (for deleting / selecting).
     public static func bounds(of item: Annotation) -> CGRect {
         let pad = item.lineWidth
         switch item.shape {
@@ -137,7 +137,7 @@ public enum AnnotationRenderer {
         }
     }
 
-    // MARK: Şekiller
+    // MARK: Shapes
 
     private static func draw(_ item: Annotation, base: CGImage, in context: CGContext) {
         let color = item.color.cgColor
@@ -175,7 +175,7 @@ public enum AnnotationRenderer {
         let headLength = min(length, max(12, lineWidth * 4))
         let angle = atan2(dy, dx)
         let spread: CGFloat = .pi / 7
-        // Gövde ok başının içinde biter, uç sivri kalsın.
+        // The shaft ends inside the arrowhead so the tip stays sharp.
         let shaftEnd = CGPoint(x: to.x - cos(angle) * headLength * 0.8, y: to.y - sin(angle) * headLength * 0.8)
         context.move(to: from)
         context.addLine(to: shaftEnd)
@@ -188,7 +188,7 @@ public enum AnnotationRenderer {
         context.fillPath()
     }
 
-    /// Bölgeyi blok boyutuna küçültüp en yakın komşu ile geri büyütür; taban görüntüden okur.
+    /// Downscales the region to block size and scales it back up with nearest neighbor; reads from the base image.
     private static func pixelate(_ rect: CGRect, base: CGImage, in context: CGContext) {
         let imageBounds = CGRect(x: 0, y: 0, width: base.width, height: base.height)
         let region = rect.integral.intersection(imageBounds)
@@ -204,7 +204,7 @@ public enum AnnotationRenderer {
         small.draw(piece, in: CGRect(x: 0, y: 0, width: smallWidth, height: smallHeight))
         guard let reduced = small.makeImage() else { return }
 
-        // Context sol-üst orijinli; görüntüyü ters çizmemek için bölgede yerel olarak geri çevir.
+        // The context is top-left origin; flip back locally in the region so the image is not drawn upside down.
         context.interpolationQuality = .none
         context.clip(to: region)
         context.translateBy(x: region.minX, y: region.maxY)
@@ -212,7 +212,7 @@ public enum AnnotationRenderer {
         context.draw(reduced, in: CGRect(x: 0, y: 0, width: CGFloat(smallWidth) * block, height: CGFloat(smallHeight) * block))
     }
 
-    // MARK: Metin
+    // MARK: Text
 
     public static func textSize(_ string: String, fontSize: CGFloat, bold: Bool = false) -> CGSize {
         let line = makeLine(string, fontSize: fontSize, color: Annotation.Color.black.cgColor, bold: bold)
@@ -225,7 +225,7 @@ public enum AnnotationRenderer {
         let line = makeLine(string, fontSize: fontSize, color: color, bold: bold)
         var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
         _ = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-        // Context y aşağı; CoreText y yukarı bekler: metin matrisini çevir, taban çizgisini ascent kadar aşağı al.
+        // Context is y-down; CoreText expects y-up: flip the text matrix and move the baseline down by the ascent.
         context.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         context.textPosition = CGPoint(x: origin.x, y: origin.y + ascent)
         CTLineDraw(line, context)

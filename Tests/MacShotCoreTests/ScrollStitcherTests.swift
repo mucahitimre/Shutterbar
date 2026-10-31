@@ -230,4 +230,11 @@ struct ScrollStitcherTests {
         #expect(results == [.first, .appended(45), .appended(65), .appended(80), .appended(70), .appended(80)])
         #expect(capture.height == page.header + 340 + (page.viewport - page.header - page.footer) + page.footer)
     }
+
+    @Test func sameFrameDetection() {
+        #expect(ScrollStitcher.isSameFrame(page.frame(at: 100), page.frame(at: 100)))
+        // Re-rasterization noise is still "the same frame".
+        #expect(ScrollStitcher.isSameFrame(page.frame(at: 100, jitter: 1), page.frame(at: 100, jitter: 2)))
+        #expect(!ScrollStitcher.isSameFrame(page.frame(at: 100), page.frame(at: 103)))
+    }
 }

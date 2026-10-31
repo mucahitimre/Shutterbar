@@ -59,6 +59,8 @@ enum AutoScrollProbe {
     /// End-to-end: runs a real scrolling session (automatic when permitted) on the area under the mouse,
     /// without the overlay, and logs the result. Launch with `-MacShotScrollingSelfTest`.
     static func runSession() {
+        FrameDump.enabled = true
+        try? FileManager.default.removeItem(at: FrameDump.folder)
         Task {
             alert("Scrolling capture self-test",
                   "After you click OK you have 5 seconds to put the mouse over a long page. MacShot will capture the area around the mouse, scroll by itself and stop at the end (or click Done).")

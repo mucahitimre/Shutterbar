@@ -13,8 +13,10 @@ final class ScrollingSession {
     }
 
     private static let frameInterval: Duration = .milliseconds(100)
-    /// Time for the target app's smooth scrolling to settle after a synthetic scroll.
-    private static let settleInterval: Duration = .milliseconds(260)
+    /// After a synthetic scroll, frames are taken this often until two in a row are the same (smooth scrolling
+    /// has settled), at most `settleAttempts` times.
+    private static let settleInterval: Duration = .milliseconds(80)
+    private static let settleAttempts = 9
 
     private let displayID: CGDirectDisplayID
     private let rect: CGRect
@@ -64,12 +66,22 @@ final class ScrollingSession {
         let clock = ContinuousClock()
         let started = clock.now
 
+        var pending: CGImage? // a settled frame taken right after scrolling
         while finishRequested == nil {
             if input.escapePressed {
                 finishRequested = false
                 break
             }
-            let frame = try await capturer.capture()
+            let frame: CGImage
+            if let settled = pending {
+                frame = settled
+                pending = nil
+            } else {
+                frame = try await capturer.capture()
+            }
+            #if DEBUG
+            FrameDump.write(frame)
+            #endif
             let result = stitch.add(frame)
             counts[Self.name(result), default: 0] += 1
             if automatic { policy.record(result) }
@@ -99,7 +111,7 @@ final class ScrollingSession {
             switch policy.decide(elapsed: elapsed, userActivity: input.takeActivity(), pointerInside: globalRect.contains(NSEvent.mouseLocation)) {
             case .scroll:
                 scroller.scrollDown()
-                try? await Task.sleep(for: Self.settleInterval)
+                pending = try await settledFrame(capturer)
             case .pause:
                 hud.update(status: "Paused — move the pointer back into the frame", height: stitch.height, warning: true)
                 try? await Task.sleep(for: Self.frameInterval)
@@ -121,6 +133,19 @@ final class ScrollingSession {
         }
         Log.capture.info("Scrolling capture: \(image.width)×\(image.height) px")
         return .done(image)
+    }
+
+    /// Captures until two consecutive frames match, so the page has stopped moving.
+    private func settledFrame(_ capturer: RegionCapturer) async throws -> CGImage {
+        try? await Task.sleep(for: Self.settleInterval)
+        var previous = try await capturer.capture()
+        for _ in 1..<Self.settleAttempts {
+            try? await Task.sleep(for: Self.settleInterval)
+            let next = try await capturer.capture()
+            if ScrollStitcher.isSameFrame(previous, next) { return next }
+            previous = next
+        }
+        return previous
     }
 
     private static func stopMessage(_ reason: AutoScrollPolicy.StopReason) -> String {
@@ -295,6 +320,22 @@ enum AutoScrollPermission {
     }
 }
 
+#if DEBUG
+/// Debug self-test only: keeps the first frames of a session for offline inspection.
+@MainActor
+enum FrameDump {
+    static var enabled = false
+    private static var index = 0
+    static let folder = SaveFolder.defaultRoot.appendingPathComponent("selftest-frames", isDirectory: true)
+
+    static func write(_ image: CGImage) {
+        guard enabled, index < 16 else { return }
+        index += 1
+        try? PNGEncoder.write(image, to: folder.appendingPathComponent(String(format: "frame-%02d.png", index)), overwrite: true)
+    }
+}
+#endif
+
 /// Posts synthetic scroll-down events where the pointer is (it never moves the pointer). The step starts at about
 /// a third of the region so consecutive frames always overlap, and halves when a frame cannot be matched.
 @MainActor
@@ -304,7 +345,7 @@ private final class AutoScroller {
     private var step: Int32
 
     init(regionHeight: CGFloat) {
-        step = Int32(max(40, regionHeight * 0.35))
+        step = Int32(max(40, regionHeight * 0.25))
     }
 
     func scrollDown() {

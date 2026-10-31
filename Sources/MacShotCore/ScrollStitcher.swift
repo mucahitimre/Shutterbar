@@ -109,6 +109,16 @@ public struct RowSignatures: Equatable, Sendable {
 }
 
 public enum ScrollStitcher {
+    /// The two frames show the same content (within the strip tolerance): used to wait until smooth scrolling
+    /// has settled before matching.
+    public static func isSameFrame(_ a: CGImage, _ b: CGImage) -> Bool {
+        guard a.width == b.width, a.height == b.height,
+              let sa = RowSignatures(image: a), let sb = RowSignatures(image: b) else { return false }
+        // Same rule as matching: a row is equal when most strips are; nearly all rows must be equal.
+        let equalRows = (0..<sa.count).filter { sa.stripMatch($0, sb, $0) >= 0.75 }.count
+        return Double(equalRows) >= Double(sa.count) * 0.98
+    }
+
     /// The columns that scroll: the longest run of columns that are not *static content* (identical in both frames
     /// and not a flat color — e.g. a fixed sidebar). Flat columns (page margins) stay in, since they may hold wider
     /// content further down. Falls back to the full width when the run would be implausibly narrow.

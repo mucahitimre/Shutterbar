@@ -5,7 +5,8 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 ## [Unreleased]
 
 ### Added
-- Scrolling capture: select an area, scroll through it, and MacShot stitches the frames into one tall image (sticky headers/footers kept once).
+- Scrolling capture: select an area, scroll through it, and MacShot stitches the frames into one tall image (sticky headers/footers kept once, fixed sidebars left out).
+- Automatic scrolling for scrolling capture in the GitHub build (Accessibility permission): stops at the end, on any user input or Esc, with time and frame limits.
 - Capture toolbar modeled on macOS's screenshot toolbar: close, entire screen / window / selection modes, Options menu, Capture.
 - Window mode (hover + click) and screen mode, with the system camera cursor and an accent-colored highlight.
 - Self-timer (5 / 10 seconds).
@@ -13,6 +14,7 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 - Optional system screenshot sound.
 
 ### Changed
+- The GitHub build is no longer sandboxed (needed for automatic scrolling); an `AppStore` configuration keeps the sandbox. Preferences are migrated once.
 - Overlay styled like the system UI: no dimming until a selection exists, thin shadowed border, round handles, pill-shaped labels, HUD messages.
 - Native tabbed Settings window, onboarding redesign, status menu with symbols and an About panel.
 - Annotation editor uses a native unified toolbar with color / width menus and Share.

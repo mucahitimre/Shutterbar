@@ -8,6 +8,8 @@ Original planning document: [docs/plan.md](docs/plan.md) · Changes: [CHANGELOG.
 
 Download the latest `MacShot-x.y.z.dmg` from [Releases](https://github.com/mucahitimre/MacShot/releases), drag MacShot to Applications and open it. Release builds are signed with a Developer ID and notarized by Apple. On first launch MacShot asks for Screen Recording permission (see [Permission](#permission)).
 
+There are two builds: the **GitHub build** (Developer ID, not sandboxed) supports automatic scrolling in scrolling capture; a future **App Store build** is sandboxed and offers manual scrolling only, because macOS does not let sandboxed apps receive the Accessibility permission.
+
 Requires macOS 14.0 or later.
 
 ## Build from source
@@ -21,6 +23,7 @@ open build/DD/Build/Products/Debug/MacShot.app
 ```
 
 - Xcode 16+ (Swift 6, strict concurrency).
+- Configurations: Debug / Release are the GitHub channel (`Sources/MacShot/MacShot.entitlements`, not sandboxed); `AppStore` is sandboxed (`MacShot-AppStore.entitlements`). Preferences from earlier sandboxed builds are migrated once on first launch.
 - Signing: set `DEVELOPMENT_TEAM` and `BUNDLE_ID_PREFIX` in `Config/Local.xcconfig` (gitignored). Repository defaults live in `Config/Signing.xcconfig` (empty team, `com.example`). Ad-hoc signed builds lose the Screen Recording permission on every rebuild, so use a stable Apple Development identity. Changing the bundle id prefix also resets the permission.
 - The app name comes from `APP_NAME` in `project.yml`; the bundle id is `$(BUNDLE_ID_PREFIX).$(APP_NAME:lower)`.
 
@@ -32,7 +35,7 @@ xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD 
 
 Pure logic (geometry, selection state machine, file naming, last region decisions, window detection, annotations) lives in the `MacShotCore` framework and is tested without a host app.
 
-In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), `--args -MacShotShowWindows` opens Settings and onboarding, and `--args -MacShotRegionSelfTest` logs whether region capture matches a crop of a full snapshot.
+In Debug builds, `open build/DD/Build/Products/Debug/MacShot.app --args -MacShotEditorSample` opens the annotation editor with a sample image (no capture permission needed), `--args -MacShotShowWindows` opens Settings and onboarding, and `--args -MacShotRegionSelfTest` logs whether region capture matches a crop of a full snapshot, `--args -MacShotAutoScrollProbe` checks whether synthetic scrolling works, and `--args -MacShotScrollingSelfTest` runs a scrolling capture on the area under the mouse (frames are kept in `~/Pictures/MacShot/selftest-frames/`).
 
 Manual test checklist: [docs/manual-test.md](docs/manual-test.md)
 
@@ -51,7 +54,11 @@ Shortcuts can be changed in Settings. The overlay opens with a toolbar at the bo
 
 After a capture a thumbnail appears in the bottom-right corner for a few seconds: click it to annotate (the saved file is replaced), drag it into another app, swipe right to dismiss, or right-click for more.
 
-**Scrolling capture** (toolbar mode, menu > Capture Scrolling Region, or a shortcut you assign in Settings): select the area to capture — for example the content part of a browser window — and press Capture. A dashed frame marks the area; scroll down slowly inside it while MacShot captures and stitches the frames, then click **Done** in the panel below the frame. Sticky headers and footers are kept once, a fixed sidebar is left out (the result is cropped to the part that scrolls), and the overlay scroll bar is ignored when matching. If you scroll too far at once the panel asks you to scroll back a little. No extra permission is needed because you do the scrolling yourself.
+**Scrolling capture** (toolbar mode, menu > Capture Scrolling Region, or a shortcut you assign in Settings): select the area to capture — for example the content part of a browser window — and press Capture. A dashed frame marks the area.
+
+- **Automatic** (GitHub build, after allowing Accessibility in Settings › General › Permissions): keep the pointer inside the frame; MacShot scrolls by itself and stops at the end of the content. Moving the mouse, scrolling, clicking or pressing a key hands control back to you, Esc cancels, and it never runs longer than 45 seconds / 120 frames. It never moves your pointer.
+- **Manual** (no permission, or the App Store build): scroll down slowly inside the frame while MacShot captures and stitches the frames, then click **Done** in the panel below the frame. "Scroll for Me…" in the panel asks for the permission.
+ Sticky headers and footers are kept once, a fixed sidebar is left out (the result is cropped to the part that scrolls), and scroll bars, hover effects and re-rendered text antialiasing are tolerated when matching frames. If you scroll too far at once the panel asks you to scroll back a little.
 
 Keys inside the overlay:
 
@@ -107,7 +114,8 @@ Sources/MacShotCore/   pure logic, tested without a host app
   LastRegion             model, UserDefaults store, validity decision
   WindowSnap             window rects (Quartz → display-local), hit testing
   CaptureMode            selection / window / screen / scrolling modes, self-timer
-  ScrollStitcher         row signatures, sticky bands, offset matching, ScrollingCapture
+  ScrollStitcher         strip signatures, sticky bands, column band, shift matching, ScrollingCapture
+  AutoScrollPolicy       safety rules for automatic scrolling
   Annotation             model, undo/redo, CoreGraphics/CoreText renderer
   FileNamer, ImageCropper (PNGEncoder), HotkeyRegistration
 Sources/MacShot/
@@ -128,7 +136,8 @@ Freeze: on the hotkey all screens are captured in parallel with `SCScreenshotMan
 - Only window detection, no control (button etc.) detection.
 - Drawn annotations cannot be selected, moved or deleted individually; use undo.
 - The self-timer and scrolling capture take live frames, so they are the paths that do not use the frozen frame.
-- Scrolling capture needs overlapping content between frames; an area that is entirely blank while you scroll past it cannot be matched (the frame is skipped). Automatic scrolling is not offered: sending scroll events to other apps would need the Accessibility permission.
+- Scrolling capture needs overlapping content between frames; an area that is entirely blank while you scroll past it cannot be matched (the frame is skipped).
+- Automatic scrolling needs the Accessibility permission and is only available in the GitHub (non-sandboxed) build.
 - Launch at login also works for Debug builds under `build/`, but moving the app requires re-enabling it; install into `/Applications` for regular use.
 
 ## Releasing

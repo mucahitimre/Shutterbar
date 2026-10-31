@@ -30,7 +30,8 @@ xcodebuild -project MacShot.xcodeproj -scheme MacShot -derivedDataPath build/DD 
 
 - **No legacy capture APIs** (`CGWindowListCreateImage`, `CGDisplayCreateImage`). Capture goes through ScreenCaptureKit.
 - **Do not copy code** from ShareX (GPL-3.0) or other projects with incompatible licenses. Reading for ideas is fine; write your own implementation.
-- New dependencies or entitlements need discussion in an issue first. The app currently depends only on [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) and uses four sandbox entitlements.
+- New dependencies or entitlements need discussion in an issue first. The app depends only on [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts). The GitHub build is not sandboxed (for automatic scrolling); the `AppStore` configuration is sandboxed with four entitlements — keep features working in both, or gate them with `Channel`.
+- Automatic actions on the user's machine (synthetic input) must go through `AutoScrollPolicy`-style limits: never move the pointer, stop on any user input, Esc cancels, hard time limits.
 - Match the surrounding code style. Code, comments, UI text and commit messages are in English.
 
 By contributing you agree that your contributions are licensed under the [MIT License](LICENSE).

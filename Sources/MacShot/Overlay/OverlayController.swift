@@ -10,6 +10,8 @@ enum CaptureIntent {
 enum OverlayResult {
     /// `isWindow`: an unmodified window picked by clicking; not stored as the last region.
     case region(DisplaySnapshot, CGRect, CaptureIntent, isWindow: Bool)
+    /// Scrolling mode: start a scrolling session for this region (frames are captured live while scrolling).
+    case scrolling(DisplaySnapshot, CGRect, CaptureIntent, isWindow: Bool)
     case screens([DisplaySnapshot])
     case cancelled
 }
@@ -182,9 +184,9 @@ final class OverlayController: OverlayViewDelegate {
         case .none:
             break
         case .capture(let rect):
-            finish(.region(view.snapshot, rect, .afterCapture, isWindow: view.machine.selectionIsWindow))
+            finish(regionResult(view, rect, .afterCapture))
         case .copy(let rect):
-            finish(.region(view.snapshot, rect, .clipboardOnly, isWindow: view.machine.selectionIsWindow))
+            finish(regionResult(view, rect, .clipboardOnly))
         case .cancel:
             finish(.cancelled)
         case .captureAllScreens:
@@ -206,6 +208,13 @@ final class OverlayController: OverlayViewDelegate {
             let primaryHeight = NSScreen.screens.first?.frame.height ?? view.snapshot.frame.height
             CGWarpMouseCursorPosition(CaptureGeometry.toQuartzGlobal(point, displayFrame: view.snapshot.frame, primaryScreenHeight: primaryHeight))
         }
+    }
+
+    private func regionResult(_ view: OverlayView, _ rect: CGRect, _ intent: CaptureIntent) -> OverlayResult {
+        let isWindow = view.machine.selectionIsWindow
+        return view.machine.mode == .scrolling
+            ? .scrolling(view.snapshot, rect, intent, isWindow: isWindow)
+            : .region(view.snapshot, rect, intent, isWindow: isWindow)
     }
 
     func overlayViewDidBeginSelection(_ view: OverlayView) {

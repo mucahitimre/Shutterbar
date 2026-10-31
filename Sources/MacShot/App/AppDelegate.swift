@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(actions: .init(
             captureRegion: { [weak self] in self?.handle(.region) },
             captureLastRegion: { [weak self] in self?.handle(.lastRegion) },
+            captureScrolling: { [weak self] in self?.handle(.scrolling) },
             openSettings: { [weak self] in self?.settings?.show() }
         ), preferences: .shared)
 
@@ -34,6 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Development: `open MacShot.app --args -MacShotEditorSample` opens the editor with a sample image (no capture needed).
         if ProcessInfo.processInfo.arguments.contains("-MacShotEditorSample") {
             capture.openEditorSample()
+            return
+        }
+        // Development: `-MacShotRegionSelfTest` checks that region capture matches a crop of a full snapshot.
+        if ProcessInfo.processInfo.arguments.contains("-MacShotRegionSelfTest") {
+            capture.runRegionSelfTest()
             return
         }
         // Development: `-MacShotShowWindows` opens settings and onboarding (layout checks).
@@ -66,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch action {
         case .region: capture.captureRegion()
         case .lastRegion: capture.captureLastRegion()
+        case .scrolling: capture.captureScrolling()
         }
     }
 }

@@ -44,7 +44,7 @@ final class CaptureToolbar: NSPanel {
         close.action = #selector(closeClicked)
 
         var items: [NSView] = [close, Self.divider()]
-        for mode in [CaptureMode.screen, .window, .selection] {
+        for mode in [CaptureMode.screen, .window, .selection, .scrolling] {
             let button = ToolbarToggleButton(symbol: mode.symbol, help: mode.title)
             button.target = self
             button.action = #selector(modeClicked(_:))

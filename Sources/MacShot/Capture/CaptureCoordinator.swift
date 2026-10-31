@@ -25,6 +25,12 @@ final class CaptureCoordinator {
         run { await $0.runRegionCapture(hud: nil) }
     }
 
+    /// Opens the overlay in scrolling mode (the mode is remembered, like the toolbar choice).
+    func captureScrolling() {
+        preferences.captureMode = .scrolling
+        captureRegion()
+    }
+
     /// R3.3–R3.5: last region without opening the overlay; if invalid, overlay + HUD; if there is none, a plain overlay.
     func captureLastRegion() {
         run { await $0.runLastRegionCapture() }
@@ -94,6 +100,29 @@ final class CaptureCoordinator {
             lastRegion.record(.fullScreen)
             ShutterSound.play()
             output.deliver(snapshots.map(\.image))
+        case .scrolling(let snapshot, let rect, let intent, let isWindow):
+            await runScrollingSession(snapshot: snapshot, rect: rect, intent: intent, isWindow: isWindow)
+        }
+    }
+
+    private func runScrollingSession(snapshot: DisplaySnapshot, rect: CGRect, intent: CaptureIntent, isWindow: Bool) async {
+        let session = ScrollingSession(displayID: snapshot.displayID, rect: rect, displayFrame: snapshot.frame)
+        let result: ScrollingSession.Result
+        do {
+            result = try await session.run()
+        } catch {
+            report(error)
+            return
+        }
+        guard case .done(let image) = result else {
+            Log.capture.info("Scrolling capture cancelled")
+            return
+        }
+        if !isWindow { remember(rect, on: snapshot) }
+        ShutterSound.play()
+        switch intent {
+        case .afterCapture: output.deliver([image])
+        case .clipboardOnly: output.copyOnly([image])
         }
     }
 
@@ -101,7 +130,7 @@ final class CaptureCoordinator {
         let seconds = preferences.captureTimer.rawValue
         guard seconds > 0 else { return result }
         let displays: [DisplaySnapshot] = switch result {
-        case .cancelled: []
+        case .cancelled, .scrolling: []
         case .region(let snapshot, _, _, _): [snapshot]
         case .screens(let snapshots): snapshots
         }
@@ -117,7 +146,7 @@ final class CaptureCoordinator {
             return switch result {
             case .region(_, let rect, let intent, let isWindow): .region(fresh[0], rect, intent, isWindow: isWindow)
             case .screens: .screens(fresh)
-            case .cancelled: .cancelled
+            case .cancelled, .scrolling: result
             }
         } catch {
             report(error)
@@ -185,6 +214,45 @@ final class CaptureCoordinator {
     }
 
     #if DEBUG
+    /// Captures the same off-center region two ways (crop of a full snapshot vs. `RegionCapturer`) and logs how
+    /// closely they match. Verifies that `sourceRect` uses display-local, top-left points.
+    func runRegionSelfTest() {
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            Log.capture.info("REGION SELFTEST preflight \(PermissionService.hasScreenCaptureAccess) scDisplays \(content?.displays.map(\.displayID) ?? [], privacy: .public) nsScreens \(NSScreen.screens.compactMap(\.displayID), privacy: .public)")
+            do {
+                let full = try await snapshotter.snapshotAll()[0]
+                let rect = CGRect(x: 120, y: 60, width: 400, height: 240)
+                guard let crop = ImageCropper.crop(full.image, pointRect: rect, displayPointSize: full.frame.size) else { return }
+                let region = try await RegionCapturer(displayID: full.displayID, rect: rect).capture()
+                let shifted = ImageCropper.crop(full.image, pointRect: rect.offsetBy(dx: 0, dy: 40), displayPointSize: full.frame.size)
+                Log.capture.info("REGION SELFTEST size crop \(crop.width)×\(crop.height) region \(region.width)×\(region.height); diff same-rect \(Self.meanDiff(crop, region), privacy: .public); diff 40pt-shifted \(shifted.map { Self.meanDiff($0, region) } ?? -1, privacy: .public)")
+            } catch {
+                Log.capture.error("REGION SELFTEST failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private static func meanDiff(_ a: CGImage, _ b: CGImage) -> Double {
+        let w = min(a.width, b.width), h = min(a.height, b.height)
+        func pixels(_ image: CGImage) -> [UInt8] {
+            var buffer = [UInt8](repeating: 0, count: w * h * 4)
+            buffer.withUnsafeMutableBytes { raw in
+                let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                ctx.draw(image, in: CGRect(x: 0, y: h - image.height, width: image.width, height: image.height))
+            }
+            return buffer
+        }
+        let pa = pixels(a), pb = pixels(b)
+        var total = 0
+        for i in stride(from: 0, to: pa.count, by: 4) {
+            total += abs(Int(pa[i]) - Int(pb[i])) + abs(Int(pa[i + 1]) - Int(pb[i + 1])) + abs(Int(pa[i + 2]) - Int(pb[i + 2]))
+        }
+        return Double(total) / Double(w * h * 3)
+    }
+
     /// Opens the editor with a synthetic image; the result goes to the after-capture tasks.
     func openEditorSample() {
         let width = 1200, height = 760

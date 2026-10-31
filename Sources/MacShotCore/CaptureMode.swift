@@ -8,12 +8,18 @@ public enum CaptureMode: String, CaseIterable, Sendable {
     case window
     /// Hover highlights the whole screen, click captures it.
     case screen
+    /// Select a region like `selection`; capturing starts a scrolling session that stitches frames while the user scrolls.
+    case scrolling
+
+    /// Modes where a region is dragged (or a window clicked) and edited before capturing.
+    public var selectsRegion: Bool { self == .selection || self == .scrolling }
 
     public var title: String {
         switch self {
         case .selection: "Capture Selected Portion"
         case .window: "Capture Selected Window"
         case .screen: "Capture Entire Screen"
+        case .scrolling: "Capture Scrolling Region"
         }
     }
 
@@ -23,6 +29,7 @@ public enum CaptureMode: String, CaseIterable, Sendable {
         case .selection: "rectangle.dashed"
         case .window: "macwindow"
         case .screen: "rectangle.inset.filled"
+        case .scrolling: "scroll"
         }
     }
 }

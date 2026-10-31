@@ -7,16 +7,20 @@ extension KeyboardShortcuts.Name {
     // Name is an immutable value type; KeyboardShortcuts does not mark it Sendable.
     nonisolated(unsafe) static let captureRegion = Self("captureRegion", default: .init(.x, modifiers: [.command, .shift]))
     nonisolated(unsafe) static let captureLastRegion = Self("captureLastRegion", default: .init(.five, modifiers: [.option, .shift]))
+    /// No default: common free combinations (e.g. ⌘⇧S) are app shortcuts like "Save As".
+    nonisolated(unsafe) static let captureScrolling = Self("captureScrolling")
 }
 
 enum HotkeyAction: CaseIterable, Hashable {
     case region
     case lastRegion
+    case scrolling
 
     var name: KeyboardShortcuts.Name {
         switch self {
         case .region: .captureRegion
         case .lastRegion: .captureLastRegion
+        case .scrolling: .captureScrolling
         }
     }
 
@@ -25,6 +29,7 @@ enum HotkeyAction: CaseIterable, Hashable {
         switch self {
         case .region: .init(.four, modifiers: [.control, .shift])
         case .lastRegion: .init(.five, modifiers: [.control, .shift])
+        case .scrolling: .init(.six, modifiers: [.control, .shift])
         }
     }
 
@@ -32,6 +37,7 @@ enum HotkeyAction: CaseIterable, Hashable {
         switch self {
         case .region: "Capture region"
         case .lastRegion: "Capture last region"
+        case .scrolling: "Capture scrolling region"
         }
     }
 }

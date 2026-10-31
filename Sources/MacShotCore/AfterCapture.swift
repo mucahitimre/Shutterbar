@@ -31,9 +31,11 @@ public struct AfterCaptureTask: OptionSet, Hashable, Sendable {
 @MainActor
 public protocol AfterCaptureActions {
     func save(_ images: [CGImage]) throws -> [URL]
-    func copy(_ images: [CGImage]) throws
+    /// - Parameter savedURLs: aynı çalışmada kaydedilen dosyalar (kayıt kapalıysa boş).
+    func copy(_ images: [CGImage], savedURLs: [URL]) throws
     func reveal(_ urls: [URL])
-    func notify(_ report: AfterCaptureReport)
+    /// - Parameter thumbnail: bildirimde gösterilecek ilk görüntü.
+    func notify(_ report: AfterCaptureReport, thumbnail: CGImage?)
 }
 
 public struct AfterCaptureFailure: Equatable, Sendable {
@@ -94,7 +96,7 @@ public enum AfterCaptureRunner {
                 }
             case .copyToClipboard:
                 do {
-                    try actions.copy(images)
+                    try actions.copy(images, savedURLs: report.savedURLs)
                     report.copied = true
                 } catch {
                     report.failures.append(.init(task: task, message: error.localizedDescription))
@@ -111,7 +113,7 @@ public enum AfterCaptureRunner {
         }
 
         if tasks.contains(.showNotification) || !report.failures.isEmpty {
-            actions.notify(report)
+            actions.notify(report, thumbnail: images.first)
         }
         return report
     }

@@ -43,6 +43,8 @@ struct SettingsView: View {
                         set: { _ in preferences.toggle(task) }
                     ))
                 }
+                Toggle("Panoya dosya URL'sini de ekle (kayıt açıkken)", isOn: $preferences.clipboardIncludesFileURL)
+                    .disabled(!preferences.afterCaptureTasks.contains(.saveToFile) || !preferences.afterCaptureTasks.contains(.copyToClipboard))
                 if preferences.afterCaptureTasks.isEmpty {
                     Label("Hiç task seçili değil; yakalanan görüntü hiçbir yere gitmez.", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)

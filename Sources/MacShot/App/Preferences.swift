@@ -12,6 +12,7 @@ final class Preferences: ObservableObject {
         static let quickCapture = "quickCapture"
         static let magnifier = "magnifier"
         static let magnifierPixelCount = "magnifierPixelCount"
+        static let clipboardIncludesFileURL = "clipboardIncludesFileURL"
     }
 
     private let defaults: UserDefaults
@@ -34,6 +35,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(magnifierPixelCount, forKey: Key.magnifierPixelCount) }
     }
 
+    /// Kayıt da açıksa panoya dosya URL'si ekle (varsayılan kapalı: yalnız görüntü).
+    @Published var clipboardIncludesFileURL: Bool {
+        didSet { defaults.set(clipboardIncludesFileURL, forKey: Key.clipboardIncludesFileURL) }
+    }
+
     /// Kullanıcının seçtiği klasörün security-scoped bookmark'ı; yoksa varsayılan klasör.
     @Published var saveFolderBookmark: Data? {
         didSet { defaults.set(saveFolderBookmark, forKey: Key.saveFolderBookmark) }
@@ -46,11 +52,13 @@ final class Preferences: ObservableObject {
             Key.quickCapture: false,
             Key.magnifier: true,
             Key.magnifierPixelCount: 15,
+            Key.clipboardIncludesFileURL: false,
         ])
         afterCaptureTasks = AfterCaptureTask(rawValue: defaults.integer(forKey: Key.afterCaptureTasks))
         quickCapture = defaults.bool(forKey: Key.quickCapture)
         magnifier = defaults.bool(forKey: Key.magnifier)
         magnifierPixelCount = defaults.integer(forKey: Key.magnifierPixelCount)
+        clipboardIncludesFileURL = defaults.bool(forKey: Key.clipboardIncludesFileURL)
         saveFolderBookmark = defaults.data(forKey: Key.saveFolderBookmark)
     }
 

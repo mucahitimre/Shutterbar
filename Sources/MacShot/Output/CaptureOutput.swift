@@ -63,8 +63,8 @@ final class CaptureOutput: AfterCaptureActions {
         return written
     }
 
-    func copy(_ images: [CGImage]) throws {
-        try Clipboard.write(images)
+    func copy(_ images: [CGImage], savedURLs: [URL]) throws {
+        try Clipboard.write(images, fileURLs: preferences.clipboardIncludesFileURL ? savedURLs : [])
         Log.output.info("Panoya kopyalandı: \(images.count) görüntü")
     }
 
@@ -72,9 +72,9 @@ final class CaptureOutput: AfterCaptureActions {
         NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
-    func notify(_ report: AfterCaptureReport) {
+    func notify(_ report: AfterCaptureReport, thumbnail: CGImage?) {
         let title = report.failures.isEmpty ? "\(AppInfo.name): yakalandı" : "\(AppInfo.name): bazı işler başarısız"
-        notifier.post(title: title, body: report.summary, file: report.savedURLs.first)
+        notifier.post(title: title, body: report.summary, file: report.savedURLs.first, thumbnail: thumbnail)
     }
 
     /// R2.8: uyarı oturum başına bir kez; ayarlar penceresinde kalıcı uyarı da var.

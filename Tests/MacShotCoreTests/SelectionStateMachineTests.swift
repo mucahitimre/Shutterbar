@@ -362,4 +362,51 @@ struct SelectionStateMachineTests {
         #expect(CaptureMode.scrolling.selectsRegion)
         #expect(!CaptureMode.window.selectsRegion)
     }
+
+    // A large remembered selection must not block taking a new, small one.
+
+    @Test func draggingASelectionPastTheEdgeShrinksIt() {
+        var sm = machine(quick: false) // bounds 1000×800
+        _ = sm.mouseDown(at: CGPoint(x: 100, y: 100))
+        _ = sm.mouseUp(at: CGPoint(x: 900, y: 700)) // 800×600
+        _ = sm.mouseDown(at: CGPoint(x: 500, y: 400))
+        sm.mouseDragged(to: CGPoint(x: 800, y: 400)) // 300 to the right: 200 past the edge
+        #expect(sm.selection == CGRect(x: 400, y: 100, width: 600, height: 600))
+        // Coming back in the same drag restores the full size.
+        sm.mouseDragged(to: CGPoint(x: 550, y: 400))
+        #expect(sm.selection == CGRect(x: 150, y: 100, width: 800, height: 600))
+        sm.mouseDragged(to: CGPoint(x: 800, y: 400))
+        _ = sm.mouseUp(at: CGPoint(x: 800, y: 400))
+        #expect(sm.selection == CGRect(x: 400, y: 100, width: 600, height: 600))
+    }
+
+    @Test func draggingASelectionOffTheScreenRemovesIt() {
+        var sm = machine(quick: false)
+        _ = sm.mouseDown(at: CGPoint(x: 100, y: 100))
+        _ = sm.mouseUp(at: CGPoint(x: 400, y: 300))
+        _ = sm.mouseDown(at: CGPoint(x: 200, y: 200))
+        sm.mouseDragged(to: CGPoint(x: -500, y: 200))
+        _ = sm.mouseUp(at: CGPoint(x: -500, y: 200))
+        #expect(sm.selection == nil)
+    }
+
+    @Test func commandDragStartsANewSelectionInsideTheOldOne() {
+        var sm = machine(quick: false)
+        _ = sm.mouseDown(at: CGPoint(x: 50, y: 50))
+        _ = sm.mouseUp(at: CGPoint(x: 950, y: 750)) // nearly the whole screen
+        _ = sm.mouseDown(at: CGPoint(x: 300, y: 300), modifiers: .newSelection)
+        sm.mouseDragged(to: CGPoint(x: 400, y: 380), modifiers: .newSelection)
+        _ = sm.mouseUp(at: CGPoint(x: 400, y: 380))
+        #expect(sm.selection == CGRect(x: 300, y: 300, width: 100, height: 80))
+    }
+
+    @Test func commandDragStartsANewSelectionEvenOnAHandle() {
+        var sm = machine(quick: false)
+        _ = sm.mouseDown(at: CGPoint(x: 100, y: 100))
+        _ = sm.mouseUp(at: CGPoint(x: 500, y: 500))
+        _ = sm.mouseDown(at: CGPoint(x: 500, y: 500), modifiers: .newSelection) // bottom-right handle
+        sm.mouseDragged(to: CGPoint(x: 600, y: 560), modifiers: .newSelection)
+        _ = sm.mouseUp(at: CGPoint(x: 600, y: 560))
+        #expect(sm.selection == CGRect(x: 500, y: 500, width: 100, height: 60))
+    }
 }

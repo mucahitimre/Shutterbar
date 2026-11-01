@@ -4,6 +4,8 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-01
+
 ### Changed
 - A selection dragged past the screen edge now shrinks instead of stopping (fully off removes it), and ⌘-drag starts a new selection even inside the current one — a large remembered region no longer blocks a new small capture.
 
@@ -47,7 +49,8 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 - Last region: remembered across relaunches, previewed in the overlay, captured directly with ⌥⇧5, with a fallback when the display layout changed.
 - Magnifier, launch at login, permission onboarding, hotkey registration check with fallback shortcuts.
 
-[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/mucahitimre/MacShot/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mucahitimre/MacShot/compare/e06bd42...v0.3.0
 [0.2.0]: https://github.com/mucahitimre/MacShot/compare/fbe4b7a...e06bd42
 [0.1.0]: https://github.com/mucahitimre/MacShot/tree/fbe4b7a

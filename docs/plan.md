@@ -1,3 +1,5 @@
+> Historical document: the original plan, written when the app's working name was **MacShot**. It was renamed to **Shutterbar** in 0.4.0 (the name was taken by another app).
+
 # MacShot v1: Minimum region capture plan from ShareX to Mac, and the Claude Code handoff block
 
 _Original planning document for MacShot v1 (translated from Turkish). Some decisions changed during implementation — see README.md._

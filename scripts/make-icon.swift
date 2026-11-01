@@ -1,9 +1,9 @@
-// Generates Sources/MacShot/Assets.xcassets/AppIcon.appiconset from code (no third-party artwork).
+// Generates Sources/Shutterbar/Assets.xcassets/AppIcon.appiconset from code (no third-party artwork).
 // Run: swift scripts/make-icon.swift
 import AppKit
 
 let root = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ".")
-let iconSet = root.appendingPathComponent("Sources/MacShot/Assets.xcassets/AppIcon.appiconset")
+let iconSet = root.appendingPathComponent("Sources/Shutterbar/Assets.xcassets/AppIcon.appiconset")
 try FileManager.default.createDirectory(at: iconSet, withIntermediateDirectories: true)
 
 /// Draws the icon on a 1024×1024 canvas, following the macOS icon grid (824 pt body, ~185 pt corner radius).

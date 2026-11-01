@@ -5,7 +5,7 @@
 ## Testing
 
 - [ ] `xcodebuild … test` passes, no new warnings
-- [ ] Unit tests added or updated for logic in `MacShotCore`
+- [ ] Unit tests added or updated for logic in `ShutterbarCore`
 - [ ] Manual checks from `docs/manual-test.md` (list which):
 
 ## Checklist

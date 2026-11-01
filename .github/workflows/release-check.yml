@@ -28,11 +28,11 @@ jobs:
         run: |
           set -o pipefail
           xcodegen generate
-          xcodebuild -project MacShot.xcodeproj -scheme MacShot \
+          xcodebuild -project Shutterbar.xcodeproj -scheme Shutterbar \
             -configuration Release -derivedDataPath build/DD \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" \
             build
-          xcodebuild -project MacShot.xcodeproj -scheme MacShot \
+          xcodebuild -project Shutterbar.xcodeproj -scheme Shutterbar \
             -configuration Debug -derivedDataPath build/DD \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" \
             test

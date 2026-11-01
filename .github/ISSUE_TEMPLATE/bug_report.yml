@@ -28,7 +28,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: MacShot version or commit
+      label: Shutterbar version or commit
   - type: textarea
     id: displays
     attributes:
@@ -38,5 +38,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "Output of: log show --last 10m --predicate 'subsystem BEGINSWITH \"com.\"' --style compact | grep -i macshot"
+      description: "Output of: log show --last 10m --predicate 'subsystem BEGINSWITH \"com.\"' --style compact | grep -i shutterbar"
       render: text

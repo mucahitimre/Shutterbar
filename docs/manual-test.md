@@ -65,7 +65,7 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 - [ ] Scrolling too fast shows the warning; scrolling back recovers
 - [ ] Done delivers the image (thumbnail, save, clipboard); ⌘C in scrolling mode → clipboard only; Cancel discards
 - [ ] Frame and HUD are not in the result
-- [x] `-MacShotRegionSelfTest` (Debug): region capture matches the crop — same rect mean diff 0.0, 40 pt shifted 48.4 (first run hit a locked screen: ScreenCaptureKit returns no displays while locked) — Claude, 2026-10-31
+- [x] `-ShutterbarRegionSelfTest` (Debug): region capture matches the crop — same rect mean diff 0.0, 40 pt shifted 48.4 (first run hit a locked screen: ScreenCaptureKit returns no displays while locked) — Claude, 2026-10-31
 - [x] Whole-window selection with a fixed sidebar (owner's first try returned a single frame): fixed by matching only the scrolling column band; replayed with frames built from the owner's Analytics screenshot — 7/7 frames appended, seamless 756×1200 result — Claude, 2026-10-31
 - [ ] Owner re-test of the whole-window case (manual scrolling)
 - [x] Auto-scroll probe: sandboxed build cannot be added to Accessibility on macOS 27; non-sandboxed can; once granted, synthetic scrolling moved the page 80 px — Claude + owner, 2026-10-31

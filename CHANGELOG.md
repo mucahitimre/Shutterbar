@@ -4,6 +4,11 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-01
+
+### Changed
+- Release packages are signed with Developer ID and notarized by Apple: the app opens with a normal double-click, no right-click → Open needed.
+
 ## [0.3.1] - 2026-11-01
 
 ### Changed
@@ -49,7 +54,8 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 - Last region: remembered across relaunches, previewed in the overlay, captured directly with ⌥⇧5, with a fallback when the display layout changed.
 - Magnifier, launch at login, permission onboarding, hotkey registration check with fallback shortcuts.
 
-[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/mucahitimre/MacShot/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mucahitimre/MacShot/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mucahitimre/MacShot/compare/e06bd42...v0.3.0
 [0.2.0]: https://github.com/mucahitimre/MacShot/compare/fbe4b7a...e06bd42

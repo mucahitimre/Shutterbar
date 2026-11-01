@@ -23,7 +23,7 @@ settings:
   base:
     # Tek ad sabiti: ürün adı, bundle id ve kayıt klasörü buradan türetilir.
     APP_NAME: MacShot
-    MARKETING_VERSION: "0.3.1"
+    MARKETING_VERSION: "0.3.2"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete

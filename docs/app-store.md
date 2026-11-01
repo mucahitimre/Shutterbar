@@ -1,6 +1,6 @@
 # Mac App Store: feasibility and plan
 
-**Short answer: yes.** MacShot already meets the hard technical requirements of the Mac App Store. What is missing is account-side work (certificates, App Store Connect listing, privacy policy) plus a separate export path in the release script.
+**Short answer: yes.** Shutterbar already meets the hard technical requirements of the Mac App Store. What is missing is account-side work (certificates, App Store Connect listing, privacy policy) plus a separate export path in the release script.
 
 ## Requirements check
 
@@ -23,8 +23,8 @@
 **Account (owner):**
 1. Active Apple Developer Program membership (99 USD/year).
 2. Certificates: *Apple Distribution* and *Mac Installer Distribution* (Xcode → Settings → Accounts → Manage Certificates).
-3. App Store Connect: new macOS app with bundle id `com.mucahitimre.macshot`, name (check that "MacShot" is available on the store; otherwise pick a store name — the bundle name can stay), category Utilities / Productivity, price Free.
-4. Privacy policy URL (required for every app): a short page stating that MacShot collects no data and captures stay on the Mac. Can live in this repo (e.g. GitHub Pages or a `PRIVACY.md` link).
+3. App Store Connect: new macOS app with bundle id `com.mucahitimre.shutterbar`, name (check that "Shutterbar" is available on the store; otherwise pick a store name — the bundle name can stay), category Utilities / Productivity, price Free.
+4. Privacy policy URL (required for every app): a short page stating that Shutterbar collects no data and captures stay on the Mac. Can live in this repo (e.g. GitHub Pages or a `PRIVACY.md` link).
 5. App Privacy questionnaire: "Data Not Collected".
 6. Store listing: description, keywords, support URL (the GitHub repo), screenshots (at least one at 1280×800, 1440×900, 2560×1600 or 2880×1800).
 
@@ -35,7 +35,7 @@
 
 ## Things to know
 
-- **No automatic scrolling in the App Store build:** measured on macOS 27 — a sandboxed MacShot cannot be added to Privacy & Security › Device Control & Data Access (Accessibility); the App Store build hides the option and keeps manual scrolling. Export the `AppStore` configuration for the store.
+- **No automatic scrolling in the App Store build:** measured on macOS 27 — a sandboxed Shutterbar cannot be added to Privacy & Security › Device Control & Data Access (Accessibility); the App Store build hides the option and keeps manual scrolling. Export the `AppStore` configuration for the store.
 
 - **App Review** may ask how screen content is used; the answer is: captured locally on user action, saved/copied only where the user chooses, never transmitted.
 - **Two channels, two signatures:** the App Store build and the Developer ID build are signed differently, so macOS treats them as different apps for the Screen Recording permission. Users should install only one of them.

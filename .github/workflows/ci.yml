@@ -26,7 +26,7 @@ jobs:
       - name: Build and test
         run: |
           set -o pipefail
-          xcodebuild -project MacShot.xcodeproj -scheme MacShot \
+          xcodebuild -project Shutterbar.xcodeproj -scheme Shutterbar \
             -configuration Debug -derivedDataPath build/DD \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" \
             test

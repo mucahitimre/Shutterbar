@@ -1,6 +1,6 @@
-# Releasing MacShot
+# Releasing Shutterbar
 
-Every **stable** version is tagged `vX.Y.Z` (annotated tag on `main`) and published on GitHub Releases as a signed, notarized `MacShot-X.Y.Z.dmg` and `MacShot-X.Y.Z.zip` with `SHA256SUMS.txt`. Pre-releases use `vX.Y.Z-beta.N` and are marked as pre-release.
+Every **stable** version is tagged `vX.Y.Z` (annotated tag on `main`) and published on GitHub Releases as a signed, notarized `Shutterbar-X.Y.Z.dmg` and `Shutterbar-X.Y.Z.zip` with `SHA256SUMS.txt`. Pre-releases use `vX.Y.Z-beta.N` and are marked as pre-release.
 
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR` for breaking changes, `MINOR` for features, `PATCH` for fixes. The build number (`CFBundleVersion`) is the commit count at release time.
 
@@ -39,7 +39,7 @@ Until the Developer ID certificate exists, `scripts/release.sh X.Y.Z --no-notari
 `main` should only change through pull requests with a green CI. GitHub offers branch protection for private repositories only on Pro; once the repository is public (or on Pro), apply the stored rules:
 
 ```bash
-gh api -X PUT repos/mucahitimre/MacShot/branches/main/protection --input .github/branch-protection.json
+gh api -X PUT repos/mucahitimre/Shutterbar/branches/main/protection --input .github/branch-protection.json
 ```
 
 ## Fixing a bad release

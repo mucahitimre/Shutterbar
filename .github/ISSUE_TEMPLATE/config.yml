@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/mucahitimre/MacShot/security/advisories/new
+    url: https://github.com/mucahitimre/Shutterbar/security/advisories/new
     about: Report security issues privately, not as public issues.

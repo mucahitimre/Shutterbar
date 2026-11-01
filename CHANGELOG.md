@@ -1,8 +1,14 @@
 # Changelog
 
-All notable changes to MacShot are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Release notes on GitHub are taken from this file.
+All notable changes to Shutterbar (called MacShot up to 0.3.2) are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/). Release notes on GitHub are taken from this file.
 
 ## [Unreleased]
+
+## [0.4.0] - 2026-11-01
+
+### Changed
+- **MacShot is now Shutterbar.** The name was already used by another open-source macOS screenshot app, and its Homebrew cask (`macshot`) made `brew upgrade` replace this app with that one. New bundle id `com.mucahitimre.shutterbar`, repository `mucahitimre/Shutterbar` (the old URL redirects), cask `mucahitimre/tap/shutterbar`.
+- Preferences (shortcuts, after-capture tasks, save folder, last region) are copied once from MacShot. macOS treats Shutterbar as a new app, so the Screen Recording and Accessibility permissions have to be granted again; remove the old MacShot entries from System Settings first. The default save folder is now `~/Pictures/Shutterbar`.
 
 ## [0.3.2] - 2026-11-01
 
@@ -54,9 +60,10 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 - Last region: remembered across relaunches, previewed in the overlay, captured directly with ⌥⇧5, with a fallback when the display layout changed.
 - Magnifier, launch at login, permission onboarding, hotkey registration check with fallback shortcuts.
 
-[Unreleased]: https://github.com/mucahitimre/MacShot/compare/v0.3.2...HEAD
-[0.3.2]: https://github.com/mucahitimre/MacShot/compare/v0.3.1...v0.3.2
-[0.3.1]: https://github.com/mucahitimre/MacShot/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/mucahitimre/MacShot/compare/e06bd42...v0.3.0
-[0.2.0]: https://github.com/mucahitimre/MacShot/compare/fbe4b7a...e06bd42
-[0.1.0]: https://github.com/mucahitimre/MacShot/tree/fbe4b7a
+[Unreleased]: https://github.com/mucahitimre/Shutterbar/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mucahitimre/Shutterbar/compare/v0.3.2...v0.4.0
+[0.3.2]: https://github.com/mucahitimre/Shutterbar/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/mucahitimre/Shutterbar/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/mucahitimre/Shutterbar/compare/e06bd42...v0.3.0
+[0.2.0]: https://github.com/mucahitimre/Shutterbar/compare/fbe4b7a...e06bd42
+[0.1.0]: https://github.com/mucahitimre/Shutterbar/tree/fbe4b7a

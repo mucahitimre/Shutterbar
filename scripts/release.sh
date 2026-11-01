@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds, signs, notarizes and packages a MacShot release, then creates a DRAFT GitHub release.
+# Builds, signs, notarizes and packages a Shutterbar release, then creates a DRAFT GitHub release.
 #
 #   scripts/release.sh 0.2.0            full release (Developer ID + notarization + draft release)
 #   scripts/release.sh 0.2.0 --local    local dry run: Release build + DMG/ZIP, no notarization, no tag, no upload
@@ -145,7 +145,7 @@ if $NOTARIZE; then
     step "Draft release created. Review it on GitHub and publish."
 else
     {
-        echo "> **Pre-release, not notarized.** On first launch macOS refuses to open it: right-click MacShot in"
+        echo "> **Pre-release, not notarized.** On first launch macOS refuses to open it: right-click Shutterbar in"
         echo "> Applications → **Open** → **Open**, once. Notarized releases will follow once Developer ID signing is set up."
         echo
         cat "$OUT/NOTES.md"

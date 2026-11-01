@@ -142,7 +142,7 @@ if $NOTARIZE; then
     [[ "$VERSION" == *-* ]] && PRERELEASE=(--prerelease)
     gh release create "$TAG" "$DMG" "$ZIP" "$OUT/SHA256SUMS.txt" \
         --draft ${PRERELEASE[@]+"${PRERELEASE[@]}"} --title "$APP_NAME $VERSION" --notes-file "$OUT/NOTES.md"
-    step "Draft release created. Review it on GitHub and publish."
+    step "Draft release created. Review it on GitHub, publish it, then run: scripts/update-cask.sh $VERSION"
 else
     {
         echo "> **Pre-release, not notarized.** On first launch macOS refuses to open it: right-click Shutterbar in"

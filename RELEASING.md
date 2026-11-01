@@ -29,6 +29,11 @@ Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR` for break
    The script archives the Release build, exports it with Developer ID, notarizes and staples the app and the DMG, writes the checksums, creates and pushes the annotated tag, and creates a **draft** GitHub release with the changelog section as notes.
 5. The tag triggers the **Release check** workflow (version/changelog match, Release build, tests). When it is green, review the draft release on GitHub and publish it.
 6. Smoke test the published DMG on a clean account (see "Release package" in the manual checklist).
+7. Point the Homebrew cask at the new version:
+   ```bash
+   scripts/update-cask.sh X.Y.Z
+   ```
+   It downloads the published DMG, checks it against `SHA256SUMS.txt`, updates `version` and `sha256` in [mucahitimre/homebrew-tap](https://github.com/mucahitimre/homebrew-tap) (`Casks/shutterbar.rb`), runs `brew style`/`brew audit` if the tap is installed, and pushes one commit. Pre-releases are skipped; the cask follows stable releases only.
 
 ## Pre-release without Developer ID
 

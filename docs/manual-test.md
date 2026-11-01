@@ -76,6 +76,11 @@ Marks: `[x]` run and passed · `[ ]` pending manual test · the note says who ra
 - [x] Preferences migrated from the sandboxed build: 6/6 keys readable afterwards (shortcuts, tasks, mode, last region, settings pane) — Claude, 2026-10-31
 - [x] Stitching algorithm unit-tested with a synthetic page (sticky bands, scroll-bar noise, blank blocks, lost frames, maximum height) — Claude, 2026-10-31
 
+## Selection editing
+
+- [ ] A large remembered selection: dragging it past the screen edge shrinks it, dragging back restores it, fully off removes it
+- [ ] ⌘-drag inside a large selection starts a new, small one
+
 ## Release package (per release)
 
 - [ ] DMG opens, drag-to-Applications works, app launches without a Gatekeeper warning (`spctl -a -vv` says "Notarized Developer ID")

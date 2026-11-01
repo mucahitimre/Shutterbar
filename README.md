@@ -150,7 +150,8 @@ Keys inside the overlay:
 
 | Key / mouse | Action |
 |---|---|
-| Drag | Select. With quick capture off (default) the selection stays: drag inside to move it, use the 8 handles to resize |
+| Drag | Select. With quick capture off (default) the selection stays: drag inside to move it, use the 8 handles to resize. Dragging it past the screen edge shrinks it (fully off removes it) |
+| ⌘-drag | Start a new selection anywhere — even inside the current one (handy when the remembered region covers the screen) |
 | Click on a window | Window detection: the window under the cursor is highlighted, clicking selects it (can be turned off) |
 | Enter / double-click inside | Capture and run the selected after-capture tasks |
 | ⌘C | Capture to the **clipboard only** (after-capture tasks are skipped) |

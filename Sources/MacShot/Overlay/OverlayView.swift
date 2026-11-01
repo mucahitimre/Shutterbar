@@ -307,6 +307,7 @@ final class OverlayView: NSView {
         var result: SelectionStateMachine.Modifiers = []
         if event.modifierFlags.contains(.shift) { result.insert(.shift) }
         if event.modifierFlags.contains(.option) { result.insert(.move) }
+        if event.modifierFlags.contains(.command) { result.insert(.newSelection) }
         return result
     }
 

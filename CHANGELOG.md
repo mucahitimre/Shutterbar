@@ -4,6 +4,9 @@ All notable changes to MacShot are documented here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+- A selection dragged past the screen edge now shrinks instead of stopping (fully off removes it), and ⌘-drag starts a new selection even inside the current one — a large remembered region no longer blocks a new small capture.
+
 ## [0.3.0] - 2026-10-31
 
 ### Added

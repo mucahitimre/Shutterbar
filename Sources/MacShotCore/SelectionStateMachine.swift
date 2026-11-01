@@ -30,6 +30,8 @@ public struct SelectionStateMachine: Sendable {
         public static let shift = Modifiers(rawValue: 1 << 0)
         /// ⌥: move the selection while drawing (Ctrl in ShareX).
         public static let move = Modifiers(rawValue: 1 << 1)
+        /// ⌘: start a new selection even inside (or on a handle of) the current one.
+        public static let newSelection = Modifiers(rawValue: 1 << 2)
     }
 
     public enum Output: Equatable, Sendable {
@@ -90,6 +92,8 @@ public struct SelectionStateMachine: Sendable {
     private var pickedWindow: CGRect?
 
     private var lastPoint: CGPoint = .zero
+    /// Selection size when a move started; moving clips it to the screen without losing it.
+    private var movingSize: CGSize = .zero
     private var modifiers: Modifiers = []
 
     public init(bounds: CGSize, pixelScale: CGFloat, quickCapture: Bool, preview: CGRect? = nil) {
@@ -122,7 +126,7 @@ public struct SelectionStateMachine: Sendable {
         // Window and screen modes only react to clicks (on mouse up).
         guard mode.selectsRegion else { return .none }
 
-        if !quickCapture, let selection {
+        if !quickCapture, let selection, !modifiers.contains(.newSelection) {
             if clickCount >= 2, selection.contains(point) {
                 return .capture(selection)
             }
@@ -132,6 +136,7 @@ public struct SelectionStateMachine: Sendable {
             }
             if selection.contains(point) {
                 phase = .moving(grabOffset: CGVector(dx: point.x - selection.minX, dy: point.y - selection.minY))
+                movingSize = selection.size
                 return .none
             }
         }
@@ -141,6 +146,7 @@ public struct SelectionStateMachine: Sendable {
 
     public mutating func mouseDragged(to point: CGPoint, modifiers: Modifiers = []) {
         let previous = lastPoint
+        let rawPoint = point
         let point = CaptureGeometry.clamp(point, to: bounds)
         cursor = point
         lastPoint = point
@@ -159,9 +165,13 @@ public struct SelectionStateMachine: Sendable {
             }
             updateDrawing(anchor: anchor)
         case .moving(let offset):
-            guard let selection else { return }
-            let moved = CGRect(x: point.x - offset.dx, y: point.y - offset.dy, width: selection.width, height: selection.height)
-            self.selection = CaptureGeometry.keepInside(moved, bounds: bounds)
+            guard selection != nil else { return }
+            // Past the screen edge the selection is cut off instead of stopping, so a large selection can be pushed
+            // out of the way (and fully off to remove it). Its size at grab time comes back when dragged back in.
+            // The unclamped pointer is used so the selection can leave the screen entirely.
+            let moved = CGRect(origin: CGPoint(x: rawPoint.x - offset.dx, y: rawPoint.y - offset.dy), size: movingSize)
+            let visible = moved.intersection(CGRect(origin: .zero, size: bounds))
+            self.selection = visible.isNull ? .zero : visible
         case .resizing(let handle, let original):
             selection = Self.resize(original, handle: handle, to: point)
         }

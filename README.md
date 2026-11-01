@@ -90,9 +90,15 @@ macOS's built-in screenshots are good, but if you came from ShareX you miss thin
 
 ## Install
 
-Download the latest `MacShot-x.y.z.dmg` from [Releases](https://github.com/mucahitimre/MacShot/releases) and drag MacShot to Applications.
+With [Homebrew](https://brew.sh):
 
-> **Pre-releases are not notarized yet.** Until the Developer ID signing is set up, macOS will refuse the first launch ("cannot be opened because Apple cannot check it"). Right-click MacShot in Applications → **Open** → **Open**, once. Notarized releases will open normally. On first launch MacShot asks for Screen Recording permission (see [Permission](#permission)).
+```bash
+brew install --cask mucahitimre/tap/macshot
+```
+
+Or download the latest `MacShot-x.y.z.dmg` from [Releases](https://github.com/mucahitimre/MacShot/releases) and drag MacShot to Applications.
+
+Releases from 0.3.2 on are signed with Developer ID and notarized by Apple, so MacShot opens with a normal double-click. (The older 0.3.0 / 0.3.1 pre-releases were not notarized and need right-click → **Open** once.) On first launch MacShot asks for Screen Recording permission (see [Permission](#permission)).
 
 There are two builds: the **GitHub build** (Developer ID, not sandboxed) supports automatic scrolling in scrolling capture; a future **App Store build** is sandboxed and offers manual scrolling only, because macOS does not let sandboxed apps receive the Accessibility permission.
 
@@ -231,7 +237,8 @@ Freeze: on the hotkey all screens are captured in parallel with `SCScreenshotMan
 
 ## Roadmap
 
-- [ ] Signed and notarized releases on GitHub (Developer ID)
+- [x] Signed and notarized releases on GitHub (Developer ID)
+- [x] Homebrew cask (`mucahitimre/tap`)
 - [ ] Mac App Store build (sandboxed, manual scrolling) — see [docs/app-store.md](docs/app-store.md)
 - [ ] Selecting, moving and deleting individual annotations
 - [ ] Selections spanning several displays

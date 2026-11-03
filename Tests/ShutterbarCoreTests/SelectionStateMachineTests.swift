@@ -16,6 +16,33 @@ struct SelectionStateMachineTests {
         #expect(sm.mouseUp(at: CGPoint(x: 110, y: 60)) == .capture(CGRect(x: 10, y: 10, width: 100, height: 50)))
     }
 
+    @Test func pointerZoneFollowsHandlesAndSelection() {
+        var sm = machine(quick: false)
+        _ = sm.mouseDown(at: CGPoint(x: 100, y: 100))
+        sm.mouseDragged(to: CGPoint(x: 300, y: 200))
+        _ = sm.mouseUp(at: CGPoint(x: 300, y: 200))
+
+        sm.mouseMoved(to: CGPoint(x: 302, y: 199))
+        #expect(sm.pointerZone == .resize(.bottomRight))
+        sm.mouseMoved(to: CGPoint(x: 200, y: 98))
+        #expect(sm.pointerZone == .resize(.top))
+        sm.mouseMoved(to: CGPoint(x: 150, y: 150))
+        #expect(sm.pointerZone == .move)
+        sm.mouseMoved(to: CGPoint(x: 500, y: 500))
+        #expect(sm.pointerZone == .draw)
+
+        _ = sm.mouseDown(at: CGPoint(x: 150, y: 150))
+        #expect(sm.pointerZone == .moving)
+    }
+
+    @Test func pointerZoneIsDrawInQuickCapture() {
+        var sm = machine()
+        _ = sm.mouseDown(at: CGPoint(x: 100, y: 100))
+        sm.mouseDragged(to: CGPoint(x: 300, y: 200))
+        sm.mouseMoved(to: CGPoint(x: 150, y: 150))
+        #expect(sm.pointerZone == .draw)
+    }
+
     @Test func tinyDragIsIgnoredAsClick() {
         var sm = machine()
         _ = sm.mouseDown(at: CGPoint(x: 10, y: 10))

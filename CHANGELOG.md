@@ -7,6 +7,9 @@ All notable changes to Shutterbar (called MacShot up to 0.3.2) are documented he
 ### Changed
 - The selection border now shows animated marching ants (dashes that crawl along the edge), as in ShareX. It stays still when Reduce Motion is on.
 
+### Fixed
+- The cursor now shows what a press would do on an editable selection: a resize cursor over the handles, a hand inside the selection (move), the crosshair outside.
+
 ## [0.4.0] - 2026-11-01
 
 ### Changed

@@ -297,6 +297,24 @@ public struct SelectionStateMachine: Sendable {
         }
     }
 
+    /// What a press at the cursor would do (or is doing), so the view can show a matching cursor.
+    public enum PointerZone: Equatable, Sendable {
+        case draw, move, moving
+        case resize(Handle)
+    }
+
+    public var pointerZone: PointerZone {
+        switch phase {
+        case .drawing: return .draw
+        case .moving: return .moving
+        case .resizing(let handle, _): return .resize(handle)
+        case .idle:
+            guard mode.selectsRegion, !quickCapture, let selection else { return .draw }
+            if let handle = handle(at: cursor) { return .resize(handle) }
+            return selection.contains(cursor) ? .move : .draw
+        }
+    }
+
     public func handle(at point: CGPoint) -> Handle? {
         guard let selection else { return nil }
         return Handle.allCases.first { handle in

@@ -141,9 +141,48 @@ final class OverlayView: NSView {
         currentCursor.set()
     }
 
-    /// Camera for window / screen mode (as in macOS), crosshair for selections.
+    /// Camera for window / screen mode (as in macOS); for selections a crosshair, a hand inside the
+    /// selection (move) and a resize cursor over its handles.
     private var currentCursor: NSCursor {
-        machine.mode.selectsRegion ? .crosshair : .camera
+        guard machine.mode.selectsRegion else { return .camera }
+        switch machine.pointerZone {
+        case .draw: return .crosshair
+        case .move: return .openHand
+        case .moving: return .closedHand
+        case .resize(let handle): return Self.resizeCursor(for: handle)
+        }
+    }
+
+    private static func resizeCursor(for handle: SelectionStateMachine.Handle) -> NSCursor {
+        if #available(macOS 15.0, *) {
+            let position: NSCursor.FrameResizePosition = switch handle {
+            case .topLeft: .topLeft
+            case .top: .top
+            case .topRight: .topRight
+            case .right: .right
+            case .bottomRight: .bottomRight
+            case .bottom: .bottom
+            case .bottomLeft: .bottomLeft
+            case .left: .left
+            }
+            return .frameResize(position: position, directions: .all)
+        }
+        switch handle {
+        case .left, .right: return .resizeLeftRight
+        case .top, .bottom: return .resizeUpDown
+        default: return .crosshair
+        }
+    }
+
+    private var shownZone: SelectionStateMachine.PointerZone?
+
+    /// Swaps the cursor when the pointer moves onto a handle, into the selection or back out.
+    private func syncCursor() {
+        let zone = machine.pointerZone
+        guard zone != shownZone else { return }
+        shownZone = zone
+        window?.invalidateCursorRects(for: self)
+        currentCursor.set()
     }
 
     // MARK: External
@@ -330,6 +369,7 @@ final class OverlayView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
+        syncCursor()
 
         // Without a selection, the window (or screen) a click would capture gets an accent tint.
         let hovered = machine.selection == nil ? machine.hoveredWindow : nil

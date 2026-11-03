@@ -22,6 +22,7 @@ final class OverlayView: NSView {
     private let tintLayer = CAShapeLayer()
     private let previewLayer = CAShapeLayer()
     private let borderLayer = CAShapeLayer()
+    private let antsLayer = CAShapeLayer()
     private let handlesLayer = CAShapeLayer()
     private let sizeLabel = OverlayView.makeLabel()
     private let cursorLabel = OverlayView.makeLabel()
@@ -49,7 +50,7 @@ final class OverlayView: NSView {
         addSubview(imageView)
 
         // Styling follows macOS's own screenshot UI: no dimming until there is a selection, a thin white
-        // border with a soft shadow, round handles, and an accent-colored tint for windows / screens.
+        // border (with marching ants) and a soft shadow, round handles, and an accent-colored tint for windows / screens.
         dimLayer.fillRule = .evenOdd
         dimLayer.fillColor = NSColor.black.withAlphaComponent(0.35).cgColor
 
@@ -70,6 +71,20 @@ final class OverlayView: NSView {
         borderLayer.shadowRadius = 1.5
         borderLayer.shadowOffset = .zero
 
+        // ShareX-style marching ants: dark dashes crawl along the white border.
+        antsLayer.fillColor = nil
+        antsLayer.strokeColor = NSColor.black.cgColor
+        antsLayer.lineWidth = 1
+        antsLayer.lineDashPattern = [4, 4]
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let march = CABasicAnimation(keyPath: "lineDashPhase")
+            march.fromValue = 0
+            march.toValue = -8
+            march.duration = 0.4
+            march.repeatCount = .infinity
+            antsLayer.add(march, forKey: "march")
+        }
+
         handlesLayer.fillColor = NSColor.white.cgColor
         handlesLayer.strokeColor = NSColor.black.withAlphaComponent(0.25).cgColor
         handlesLayer.lineWidth = 0.5
@@ -81,7 +96,7 @@ final class OverlayView: NSView {
         let overlay = ShapeHostView(frame: bounds)
         overlay.autoresizingMask = [.width, .height]
         overlay.wantsLayer = true
-        for sublayer in [dimLayer, tintLayer, previewLayer, borderLayer, handlesLayer] {
+        for sublayer in [dimLayer, tintLayer, previewLayer, borderLayer, antsLayer, handlesLayer] {
             sublayer.frame = bounds
             sublayer.actions = ["path": NSNull(), "hidden": NSNull()]
             overlay.layer?.addSublayer(sublayer)
@@ -347,8 +362,11 @@ final class OverlayView: NSView {
         }
 
         if let selection {
-            borderLayer.path = CGPath(rect: selection.insetBy(dx: -0.5, dy: -0.5), transform: nil)
+            let outline = CGPath(rect: selection.insetBy(dx: -0.5, dy: -0.5), transform: nil)
+            borderLayer.path = outline
             borderLayer.isHidden = false
+            antsLayer.path = outline
+            antsLayer.isHidden = false
 
             let showHandles = !machine.quickCapture && machine.phase == .idle && machine.mode.selectsRegion
             if showHandles {
@@ -362,6 +380,7 @@ final class OverlayView: NSView {
             handlesLayer.isHidden = !showHandles
         } else {
             borderLayer.isHidden = true
+            antsLayer.isHidden = true
             handlesLayer.isHidden = true
         }
 

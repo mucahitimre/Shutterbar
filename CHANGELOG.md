@@ -6,6 +6,8 @@ All notable changes to Shutterbar (called MacShot up to 0.3.2) are documented he
 
 ### Changed
 - The selection border now shows animated marching ants (dashes that crawl along the edge), as in ShareX. It stays still when Reduce Motion is on.
+- The screen is dimmed as soon as a capture starts (as in ShareX); the hovered window and the selection stay bright.
+- The capture toolbar stands out more: a darker background with a light edge, larger mode buttons, an accent-colored Capture button, and it rises into place when it appears.
 
 ### Fixed
 - The cursor now shows what a press would do on an editable selection: a resize cursor over the handles, a hand inside the selection (move), the crosshair outside.

@@ -38,6 +38,18 @@ final class CaptureToolbar: NSPanel {
         background.state = .active
         background.maskImage = Self.roundedMask(radius: 12)
 
+        // A darker fill and a hairline edge keep the toolbar visible on any screenshot (the blur alone
+        // blends into dark or busy content).
+        let frameView = PassthroughView()
+        frameView.wantsLayer = true
+        frameView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.45).cgColor
+        frameView.layer?.borderColor = NSColor.white.withAlphaComponent(0.22).cgColor
+        frameView.layer?.borderWidth = 1
+        frameView.layer?.cornerRadius = 12
+        frameView.layer?.cornerCurve = .continuous
+        frameView.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(frameView)
+
         let close = Self.iconButton(symbol: "xmark.circle.fill", size: 17, help: "Close (Esc)")
         close.contentTintColor = .secondaryLabelColor
         close.target = self
@@ -68,7 +80,8 @@ final class CaptureToolbar: NSPanel {
         let capture = NSButton(title: "Capture", target: self, action: #selector(captureClicked))
         capture.bezelStyle = .rounded
         capture.controlSize = .regular
-        capture.font = .systemFont(ofSize: 13)
+        capture.font = .systemFont(ofSize: 13, weight: .semibold)
+        capture.bezelColor = .controlAccentColor
         items.append(capture)
 
         let stack = NSStackView(views: items)
@@ -77,10 +90,14 @@ final class CaptureToolbar: NSPanel {
         stack.spacing = 6
         stack.setCustomSpacing(10, after: close)
         stack.setCustomSpacing(12, after: optionsButton)
-        stack.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
+        stack.edgeInsets = NSEdgeInsets(top: 10, left: 14, bottom: 10, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
         background.addSubview(stack)
         NSLayoutConstraint.activate([
+            frameView.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            frameView.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            frameView.topAnchor.constraint(equalTo: background.topAnchor),
+            frameView.bottomAnchor.constraint(equalTo: background.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: background.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: background.trailingAnchor),
             stack.topAnchor.constraint(equalTo: background.topAnchor),
@@ -97,12 +114,17 @@ final class CaptureToolbar: NSPanel {
     /// Bottom center of the screen, like the system toolbar.
     func present(on screen: NSScreen) {
         let frame = screen.frame
-        setFrameOrigin(CGPoint(x: frame.midX - self.frame.width / 2, y: frame.minY + 96))
+        let origin = CGPoint(x: frame.midX - self.frame.width / 2, y: frame.minY + 96)
+        // Rises into place so the eye catches it.
+        let rise: CGFloat = Motion.reduced ? 0 : 12
+        setFrameOrigin(CGPoint(x: origin.x, y: origin.y - rise))
         alphaValue = 0
         orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Motion.duration(0.15)
+            context.duration = Motion.duration(0.22)
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             animator().alphaValue = 1
+            animator().setFrameOrigin(origin)
         }
     }
 
@@ -171,7 +193,7 @@ final class CaptureToolbar: NSPanel {
 final class ToolbarToggleButton: NSButton {
     var isSelectedMode = false {
         didSet {
-            layer?.backgroundColor = isSelectedMode ? NSColor.white.withAlphaComponent(0.18).cgColor : nil
+            layer?.backgroundColor = isSelectedMode ? NSColor.white.withAlphaComponent(0.24).cgColor : nil
             contentTintColor = isSelectedMode ? .labelColor : .secondaryLabelColor
             setAccessibilityValue(isSelectedMode ? "selected" : nil)
         }
@@ -180,7 +202,7 @@ final class ToolbarToggleButton: NSButton {
     init(symbol: String, help: String) {
         super.init(frame: .zero)
         image = NSImage(systemSymbolName: symbol, accessibilityDescription: help)?
-            .withSymbolConfiguration(.init(pointSize: 17, weight: .regular))
+            .withSymbolConfiguration(.init(pointSize: 18, weight: .regular))
         imagePosition = .imageOnly
         isBordered = false
         toolTip = help
@@ -191,11 +213,16 @@ final class ToolbarToggleButton: NSButton {
         contentTintColor = .secondaryLabelColor
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 36),
-            heightAnchor.constraint(equalToConstant: 30),
+            widthAnchor.constraint(equalToConstant: 40),
+            heightAnchor.constraint(equalToConstant: 32),
         ])
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+}
+
+/// Decoration that never takes clicks, so dragging the toolbar by its background still works.
+private final class PassthroughView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

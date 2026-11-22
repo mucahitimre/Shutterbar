@@ -49,8 +49,9 @@ final class OverlayView: NSView {
         imageView.autoresizingMask = [.width, .height]
         addSubview(imageView)
 
-        // Styling follows macOS's own screenshot UI: no dimming until there is a selection, a thin white
-        // border (with marching ants) and a soft shadow, round handles, and an accent-colored tint for windows / screens.
+        // Styling: the screen is dimmed from the start (as in ShareX) except the hovered window or the selection,
+        // a thin white border with marching ants and a soft shadow, round handles, and an accent-colored tint
+        // for windows / screens.
         dimLayer.fillRule = .evenOdd
         dimLayer.fillColor = NSColor.black.withAlphaComponent(0.35).cgColor
 
@@ -76,7 +77,7 @@ final class OverlayView: NSView {
         antsLayer.strokeColor = NSColor.black.cgColor
         antsLayer.lineWidth = 1
         antsLayer.lineDashPattern = [4, 4]
-        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        if !Motion.reduced {
             let march = CABasicAnimation(keyPath: "lineDashPhase")
             march.fromValue = 0
             march.toValue = -8
@@ -383,16 +384,13 @@ final class OverlayView: NSView {
             tintLayer.isHidden = true
         }
 
-        // Dim outside the selection (or the last-region preview); no dimming otherwise.
-        if let cutout = selection ?? machine.preview {
-            let dim = CGMutablePath()
-            dim.addRect(bounds)
+        // Dim everything outside the selection, the last-region preview or the hovered window.
+        let dim = CGMutablePath()
+        dim.addRect(bounds)
+        if let cutout = selection ?? machine.preview ?? hovered {
             dim.addRect(cutout)
-            dimLayer.path = dim
-            dimLayer.isHidden = false
-        } else {
-            dimLayer.isHidden = true
         }
+        dimLayer.path = dim
 
         if let preview = machine.preview, selection == nil {
             previewLayer.path = CGPath(rect: preview.insetBy(dx: 0.5, dy: 0.5), transform: nil)
